@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useContext } from 'react';
-import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import ActiveWorkout from './components/ActiveWorkout';
 import HistoryView from './components/HistoryView';
@@ -33,11 +33,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const isHome = location.pathname === '/';
-  const isCoach = location.pathname === '/coach-admin';
   const { logo, clientCode } = useContext(AppContext);
-
-  // Jeśli jesteśmy w panelu trenera, nie pokazujemy nagłówka klienta
-  if (isCoach) return <>{children}</>;
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col relative bg-[#121212] text-[#e0e0e0] font-sans">
@@ -84,6 +80,35 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       )}
     </div>
   );
+};
+
+/**
+ * Komponent zarządzający dostępem (Route Guard).
+ * Decyduje czy wyświetlić AuthView czy główny interfejs klienta.
+ */
+const ClientRouteGuard: React.FC<{ 
+  children: React.ReactNode, 
+  clientCode: string | null, 
+  syncError: string | null, 
+  isReady: boolean, 
+  handleLogin: (code: string, userData: any) => void 
+}> = ({ children, clientCode, syncError, isReady, handleLogin }) => {
+  const location = useLocation();
+  const isCoachRoute = location.pathname === '/coach-admin';
+
+  // Panel trenera jest zawsze dostępny bezpośrednio
+  if (isCoachRoute) return <>{children}</>;
+
+  // Dla tras klienta sprawdzamy auth
+  if (!clientCode) return <AuthView onLogin={handleLogin} />;
+  if (syncError) return <div className="p-10 text-center text-red-500">{syncError}</div>;
+  if (!isReady) return (
+    <div className="min-h-screen bg-[#121212] flex items-center justify-center">
+      <i className="fas fa-spinner fa-spin text-red-600 text-4xl"></i>
+    </div>
+  );
+
+  return <Layout>{children}</Layout>;
 };
 
 export default function App() {
@@ -191,19 +216,15 @@ export default function App() {
     osc.connect(gain).connect(ctx.destination);
   }, [audioCtx, settings]);
 
-  // Specjalny routing: jeśli URL to /coach-admin, ignorujemy logowanie klienta
-  const isCoachAdmin = window.location.hash === '#/coach-admin';
-
-  if (!isCoachAdmin) {
-    if (!clientCode) return <AuthView onLogin={handleLogin} />;
-    if (syncError) return <div className="p-10 text-center text-red-500">{syncError}</div>;
-    if (!isReady) return <div className="min-h-screen bg-[#121212] flex items-center justify-center"><i className="fas fa-spinner fa-spin text-red-600 text-4xl"></i></div>;
-  }
-
   return (
     <AppContext.Provider value={{ clientCode, clientName, workouts, settings, updateSettings, updateWorkouts, logo, updateLogo, playAlarm, syncData }}>
       <HashRouter>
-        <Layout>
+        <ClientRouteGuard 
+          clientCode={clientCode} 
+          syncError={syncError} 
+          isReady={isReady} 
+          handleLogin={handleLogin}
+        >
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/workout/:id" element={<ActiveWorkout />} />
@@ -213,8 +234,9 @@ export default function App() {
             <Route path="/cardio" element={<CardioView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="/coach-admin" element={<CoachDashboard />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </Layout>
+        </ClientRouteGuard>
       </HashRouter>
     </AppContext.Provider>
   );

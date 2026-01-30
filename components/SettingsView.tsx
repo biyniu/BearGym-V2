@@ -8,7 +8,7 @@ import { Exercise, WorkoutPlan, CardioSession, WorkoutHistoryEntry, ExerciseType
 declare var html2pdf: any;
 
 export default function SettingsView() {
-  const { settings, updateSettings, playAlarm, workouts, updateWorkouts, clientCode, syncData } = useContext(AppContext);
+  const { settings, updateSettings, playAlarm, workouts, updateWorkouts, clientCode, syncData, logo } = useContext(AppContext);
   const [selectedWorkoutId, setSelectedWorkoutId] = useState<string>("");
   const [editingExerciseIdx, setEditingExerciseIdx] = useState<number | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
@@ -107,59 +107,65 @@ export default function SettingsView() {
         try {
             const data = JSON.parse(event.target?.result as string);
             
-            // 1. Zapisz wszystko do localStorage
+            // Zachowujemy obecne logo, jeśli w kopii go nie ma
+            const currentLogo = localStorage.getItem('app_logo') || logo;
+            
+            // 1. Czyścimy starą historię lokalną przed importem nowej
+            const prefix = `${CLIENT_CONFIG.storageKey}_history_`;
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith(prefix)) localStorage.removeItem(key);
+            }
+
+            // 2. Zapisz nowe dane do localStorage
             Object.keys(data).forEach(key => localStorage.setItem(key, data[key]));
             
-            // 2. Pobierz kod klienta
+            // Jeśli import nie miał logo, przywracamy stare
+            if (!data['app_logo']) localStorage.setItem('app_logo', currentLogo);
+
+            // 3. Pobierz kod klienta do synchronizacji
             const codeToSync = data['bear_gym_client_code'] || clientCode;
             
             if (codeToSync) {
-              // Blokada dla initData, by nie nadpisać tego co właśnie zaimportowaliśmy
               localStorage.setItem('is_syncing', 'true');
 
-              // 3. Budujemy mapy do synchronizacji z chmurą
+              // Budujemy mapę całej historii do wysłania
               const historyToSync: Record<string, any[]> = {};
-              const historyPrefix = `${CLIENT_CONFIG.storageKey}_history_`;
               let planToSync: any = null;
 
               Object.keys(data).forEach(key => {
-                // Historia
-                if (key.startsWith(historyPrefix)) {
-                  const wId = key.replace(historyPrefix, '');
+                if (key.startsWith(prefix)) {
+                  const wId = key.replace(prefix, '');
                   try { historyToSync[wId] = JSON.parse(data[key]); } catch(e) {}
                 }
-                // Plan treningowy
                 if (key === `${CLIENT_CONFIG.storageKey}_workouts`) {
                   try { planToSync = JSON.parse(data[key]); } catch(e) {}
                 }
               });
 
-              // 4. Pobieramy extras
+              // Pomiary i cardio
               const cardioToSync = JSON.parse(data[`${CLIENT_CONFIG.storageKey}_cardio`] || '[]');
               const measurementsToSync = JSON.parse(data[`${CLIENT_CONFIG.storageKey}_measurements`] || '[]');
 
-              // 5. Wysyłamy WSZYSTKO do chmury po kolei
-              if (planToSync) {
-                await remoteStorage.saveToCloud(codeToSync, 'plan', planToSync);
-              }
+              // Wysyłka seryjna do chmury
+              if (planToSync) await remoteStorage.saveToCloud(codeToSync, 'plan', planToSync);
               await remoteStorage.saveToCloud(codeToSync, 'history', historyToSync);
               await remoteStorage.saveToCloud(codeToSync, 'extras', {
                 measurements: measurementsToSync,
                 cardio: cardioToSync
               });
 
-              alert("Import zakończony sukcesem! Dane zostały wysłane do Google Sheets.");
+              localStorage.removeItem('is_syncing');
+              alert("Import zakończony! Dane zsynchronizowane z arkuszem Google.");
             } else {
-              alert("Import zakończony lokalnie. Zaloguj się, aby zsynchronizować z chmurą.");
+              alert("Import zakończony lokalnie.");
             }
 
-            // Przeładowanie, aby App.tsx wczytał nowy stan z localStorage
             window.location.reload();
         } catch(err) { 
             console.error(err);
-            alert("Błąd importu pliku: Nieprawidłowy format JSON."); 
+            alert("Błąd importu pliku."); 
             setIsImporting(false);
-            localStorage.removeItem('is_syncing');
         }
     };
     reader.readAsText(file);

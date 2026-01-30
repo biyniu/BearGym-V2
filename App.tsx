@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
 import { HashRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import ActiveWorkout from './components/ActiveWorkout';
@@ -119,14 +119,11 @@ export default function App() {
   const [syncError, setSyncError] = useState<string | null>(null);
 
   const initData = useCallback(async (code: string) => {
+    // Jeśli właśnie trwa import, nie nadpisujemy danych z chmury dopóki przeładowanie się nie skończy
+    if (localStorage.getItem('is_syncing')) return;
+
     setSyncError(null);
     try {
-      // Zawsze ładujemy najpierw co mamy lokalnie, żeby aplikacja nie była pusta
-      const localWorkouts = localStorage.getItem(`${CLIENT_CONFIG.storageKey}_workouts`);
-      if (localWorkouts) {
-        setWorkouts(JSON.parse(localWorkouts));
-      }
-
       const result = await remoteStorage.fetchUserData(code);
       if (result.success) {
         if (result.plan) {
@@ -148,7 +145,7 @@ export default function App() {
         }
         setIsReady(true);
       } else {
-        // Jeśli nie ma neta, ale mamy lokalne dane - pozwalamy wejść
+        const localWorkouts = localStorage.getItem(`${CLIENT_CONFIG.storageKey}_workouts`);
         if (localWorkouts) {
           setIsReady(true);
         } else if (result.error?.includes("Nie znaleziono") || result.error?.includes("Nieprawidłowy")) {
@@ -159,13 +156,11 @@ export default function App() {
         }
       }
     } catch (e) {
-      if (workouts && Object.keys(workouts).length > 0) {
-        setIsReady(true);
-      } else {
-        setSyncError("Błąd ładowania danych.");
-      }
+      const localWorkouts = localStorage.getItem(`${CLIENT_CONFIG.storageKey}_workouts`);
+      if (localWorkouts) setIsReady(true);
+      else setSyncError("Błąd ładowania danych.");
     }
-  }, [workouts]);
+  }, []); // Usunięto 'workouts' z zależności, aby uniknąć pętli renderowania
 
   useEffect(() => {
     if (clientCode) initData(clientCode);
@@ -187,6 +182,7 @@ export default function App() {
   const syncData = async (type: 'history' | 'extras' | 'plan', data: any) => {
     if (clientCode) {
       let payload = data;
+      // Jeśli typ to historia i data jest null, pobierz aktualną historię ze wszystkich workoutów
       if (type === 'history') {
         const allHistory: Record<string, any[]> = {};
         const prefix = `${CLIENT_CONFIG.storageKey}_history_`;
@@ -194,7 +190,9 @@ export default function App() {
           const key = localStorage.key(i);
           if (key && key.startsWith(prefix)) {
             const workoutId = key.replace(prefix, '');
-            allHistory[workoutId] = JSON.parse(localStorage.getItem(key) || '[]');
+            try {
+                allHistory[workoutId] = JSON.parse(localStorage.getItem(key) || '[]');
+            } catch(e) {}
           }
         }
         payload = allHistory;

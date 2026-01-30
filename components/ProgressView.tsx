@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useRef } from 'react';
 import { AppContext } from '../App';
 import { storage } from '../services/storage';
@@ -42,8 +43,11 @@ export default function ProgressView() {
 
       if (!found) return null;
 
+      // Obsługa różnych formatów daty
+      const datePart = entry.date.split(/[ ,]/)[0];
+
       return {
-        date: entry.date.split(',')[0].slice(0, 5), // Krótka data DD.MM
+        date: datePart.slice(0, 5), // Krótka data DD.MM
         weight: maxWeight,
         fullDate: entry.date
       };
@@ -78,10 +82,10 @@ export default function ProgressView() {
     return (
       <text 
         x={x} 
-        y={y - 8} 
-        fill="#fff" 
+        y={y - 12} 
+        fill="#ffffff" 
         textAnchor="middle" 
-        fontSize={8} 
+        fontSize={10} 
         fontWeight="bold"
       >
         {value}
@@ -130,7 +134,9 @@ export default function ProgressView() {
 
               const weights = data.map((d: any) => d.weight);
               const maxVal = Math.max(...weights);
-              const domainMax = Math.ceil(maxVal * 1.2); 
+              const minVal = Math.min(...weights);
+              const domainMax = Math.ceil(maxVal * 1.25); 
+              const domainMin = Math.max(0, Math.floor(minVal * 0.8));
 
               return (
                   <div key={ex.id} className="bg-[#1e1e1e] p-3 rounded-lg shadow-sm border border-gray-800">
@@ -138,18 +144,18 @@ export default function ProgressView() {
                           <h3 className="font-bold text-white text-sm truncate max-w-[70%]">{ex.name}</h3>
                           <span className="text-xs font-bold text-blue-400">Max: {maxVal} kg</span>
                       </div>
-                      <div className="h-40 w-full">
+                      <div className="h-44 w-full pt-4">
                           <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={data as any} margin={{ top: 20, right: 10, bottom: 0, left: 0 }}>
+                              <LineChart data={data as any} margin={{ top: 25, right: 35, bottom: 20, left: 10 }}>
                               <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
                               <XAxis 
                                   dataKey="date" 
                                   stroke="#666" 
                                   tick={{fill: '#888', fontSize: 10}} 
-                                  tickMargin={5}
-                                  minTickGap={30}
+                                  tickMargin={10}
+                                  padding={{ left: 25, right: 25 }}
                               />
-                              <YAxis hide={true} domain={[0, domainMax]} />
+                              <YAxis hide={true} domain={[domainMin, domainMax]} />
                               <Tooltip 
                                   contentStyle={{ backgroundColor: '#111', border: '1px solid #444', borderRadius: '4px', fontSize: '10px' }}
                                   itemStyle={{ color: '#fff' }}
@@ -160,8 +166,8 @@ export default function ProgressView() {
                                   dataKey="weight" 
                                   stroke="#ef4444" 
                                   strokeWidth={2} 
-                                  dot={{ r: 3, fill: '#ef4444' }} 
-                                  activeDot={{ r: 5, fill: '#fff' }}
+                                  dot={{ r: 4, fill: '#ef4444', strokeWidth: 2, stroke: '#1e1e1e' }} 
+                                  activeDot={{ r: 6, fill: '#fff' }}
                                   label={<CustomLabel />}
                               />
                               </LineChart>
@@ -234,7 +240,9 @@ export default function ProgressView() {
 
                                     const weights = data.map((d: any) => d.weight);
                                     const maxVal = Math.max(...weights);
-                                    const domainMax = Math.ceil(maxVal * 1.2); 
+                                    const minVal = Math.min(...weights);
+                                    const domainMax = Math.ceil(maxVal * 1.25); 
+                                    const domainMin = Math.max(0, Math.floor(minVal * 0.8));
                                     const lastDate = data[data.length-1].date;
 
                                     return (
@@ -248,18 +256,18 @@ export default function ProgressView() {
                                             </div>
                                             
                                             {/* Wykres w PDF - stała wysokość */}
-                                            <div className="h-32 w-full">
+                                            <div className="h-36 w-full pt-4">
                                                 <ResponsiveContainer width="100%" height="100%">
-                                                    <LineChart data={data as any}>
+                                                    <LineChart data={data as any} margin={{ top: 20, right: 30, bottom: 20, left: 10 }}>
                                                         <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
                                                         <XAxis 
                                                             dataKey="date" 
                                                             stroke="#555" 
                                                             tick={{fill: '#777', fontSize: 8}} 
                                                             tickMargin={5}
-                                                            minTickGap={20}
+                                                            padding={{ left: 20, right: 20 }}
                                                         />
-                                                        <YAxis hide={true} domain={[0, domainMax]} />
+                                                        <YAxis hide={true} domain={[domainMin, domainMax]} />
                                                         <Line 
                                                             type="monotone" 
                                                             dataKey="weight" 

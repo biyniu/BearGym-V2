@@ -29,7 +29,6 @@ export default function CoachDashboard() {
     const res = await remoteStorage.fetchCoachClientDetail(masterCode, clientId);
     if (res.success) {
       setSelectedClient(res);
-      // Ustaw domyślny plan dla zakładki progresu
       if (res.plan) {
         setSelectedProgressWorkout(Object.keys(res.plan)[0] || "");
       }
@@ -37,14 +36,13 @@ export default function CoachDashboard() {
     setLoading(false);
   };
 
-  // Funkcja do wyciągania danych do wykresów (analogiczna do ProgressView klienta)
   const getExerciseChartData = (workoutId: string, exerciseId: string) => {
     if (!selectedClient?.history) return [];
     const history = selectedClient.history[workoutId];
-    if (!history || history.length < 2) return [];
+    if (!Array.isArray(history) || history.length < 2) return [];
 
     return history.slice().reverse().map((entry: any) => {
-      const resultStr = entry.results[exerciseId];
+      const resultStr = entry.results?.[exerciseId];
       if (!resultStr) return null;
       const matches = resultStr.matchAll(/(\d+(?:[.,]\d+)?)\s*kg/gi);
       let maxWeight = 0;
@@ -57,8 +55,11 @@ export default function CoachDashboard() {
         }
       }
       if (!found) return null;
+      
+      // Obsługa różnych formatów daty (spacja lub przecinek)
+      const datePart = entry.date.split(/[ ,]/)[0];
       return {
-        date: entry.date.split(' ')[0].slice(0, 5),
+        date: datePart.slice(0, 5),
         weight: maxWeight
       };
     }).filter(Boolean);
@@ -67,8 +68,8 @@ export default function CoachDashboard() {
   const CustomLabel = (props: any) => {
     const { x, y, value } = props;
     return (
-      <text x={x} y={y - 10} fill="#fff" textAnchor="middle" fontSize={10} fontWeight="bold">
-        {value}
+      <text x={x} y={y - 12} fill="#ffffff" textAnchor="middle" fontSize={10} fontWeight="bold">
+        {value}kg
       </text>
     );
   };
@@ -102,7 +103,6 @@ export default function CoachDashboard() {
 
   return (
     <div className="min-h-screen bg-[#0f0f0f] flex text-gray-300 font-sans">
-      {/* SIDEBAR */}
       <aside className="w-80 bg-[#161616] border-r border-gray-800 flex flex-col h-screen sticky top-0">
         <div className="p-6 border-b border-gray-800 flex items-center space-x-3">
           <div className="w-8 h-8 bg-red-600 rounded flex items-center justify-center text-white font-black italic">B</div>
@@ -129,7 +129,6 @@ export default function CoachDashboard() {
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
       <main className="flex-grow overflow-y-auto p-10 bg-gradient-to-br from-[#0f0f0f] to-[#050505]">
         {selectedClient ? (
           <div className="max-w-6xl mx-auto animate-fade-in">
@@ -146,7 +145,6 @@ export default function CoachDashboard() {
               </div>
             </div>
 
-            {/* TAB: PLAN TRENINGOWY (CZYTELNY) */}
             {activeTab === 'plan' && (
               <div className="space-y-8 animate-fade-in">
                 {Object.entries(selectedClient.plan || {}).map(([id, workout]: any) => (
@@ -169,7 +167,7 @@ export default function CoachDashboard() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-800">
-                          {workout.exercises.map((ex: any, idx: number) => (
+                          {workout.exercises?.map((ex: any, idx: number) => (
                             <tr key={ex.id} className="hover:bg-white/[0.02] transition">
                               <td className="py-4 pl-2 font-mono text-blue-500">{idx + 1}</td>
                               <td className="py-4">
@@ -188,19 +186,13 @@ export default function CoachDashboard() {
                     </div>
                   </div>
                 ))}
-                {(!selectedClient.plan || Object.keys(selectedClient.plan).length === 0) && (
-                  <div className="text-center py-20 bg-[#161616] rounded-3xl border border-gray-800">
-                    <i className="fas fa-folder-open text-6xl text-gray-700 mb-4"></i>
-                    <p className="text-gray-500 font-bold">Brak przypisanego planu treningowego.</p>
-                  </div>
-                )}
               </div>
             )}
 
-            {/* TAB: SZCZEGÓŁOWA HISTORIA */}
             {activeTab === 'history' && (
               <div className="space-y-6 animate-fade-in">
-                {Object.entries(selectedClient.history || {}).map(([id, sessions]: any) => {
+                {selectedClient.history && Object.entries(selectedClient.history).map(([id, sessions]: any) => {
+                  if (!Array.isArray(sessions)) return null;
                   const planName = selectedClient.plan?.[id]?.title || id;
                   return (
                     <div key={id} className="bg-[#161616] rounded-3xl border border-gray-800 overflow-hidden shadow-xl">
@@ -214,13 +206,10 @@ export default function CoachDashboard() {
                               <span className="text-blue-400 font-black text-sm uppercase tracking-tighter flex items-center">
                                 <i className="fas fa-calendar-check mr-2"></i> SESJA: {s.date}
                               </span>
-                              <span className="text-[10px] text-gray-600 font-bold bg-black px-2 py-1 rounded">
-                                {Object.keys(s.results).length} ĆWICZENIA WYKONANE
-                              </span>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {Object.entries(s.results).map(([exId, result]: any) => {
-                                const exerciseName = selectedClient.plan?.[id]?.exercises.find((e: any) => e.id === exId)?.name || exId;
+                              {s.results && Object.entries(s.results).map(([exId, result]: any) => {
+                                const exerciseName = selectedClient.plan?.[id]?.exercises?.find((e: any) => e.id === exId)?.name || exId;
                                 return (
                                   <div key={exId} className="bg-black/30 p-3 rounded-xl border border-gray-800">
                                     <div className="text-[10px] font-black text-gray-500 uppercase mb-1 truncate">{exerciseName}</div>
@@ -238,13 +227,12 @@ export default function CoachDashboard() {
               </div>
             )}
 
-            {/* TAB: WYKRESY PROGRESU */}
             {activeTab === 'progress' && (
               <div className="animate-fade-in space-y-8">
                 <div className="bg-[#161616] p-6 rounded-3xl border border-gray-800 flex flex-col md:flex-row items-center gap-4 sticky top-4 z-10 shadow-2xl">
                   <span className="text-gray-400 text-xs font-black uppercase tracking-widest whitespace-nowrap">Wybierz Trening:</span>
                   <div className="flex-grow flex gap-2 overflow-x-auto pb-2 md:pb-0">
-                    {Object.keys(selectedClient.plan || {}).map(pId => (
+                    {selectedClient.plan && Object.keys(selectedClient.plan).map(pId => (
                       <button 
                         key={pId}
                         onClick={() => setSelectedProgressWorkout(pId)}
@@ -257,13 +245,15 @@ export default function CoachDashboard() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-20">
-                  {selectedClient.plan?.[selectedProgressWorkout]?.exercises.map((ex: any) => {
+                  {selectedClient.plan?.[selectedProgressWorkout]?.exercises?.map((ex: any) => {
                     const chartData = getExerciseChartData(selectedProgressWorkout, ex.id);
                     if (chartData.length < 2) return null;
                     
                     const weights = chartData.map(d => d.weight);
                     const maxVal = Math.max(...weights);
-                    const domainMax = Math.ceil(maxVal * 1.2);
+                    const minVal = Math.min(...weights);
+                    const domainMax = Math.ceil(maxVal * 1.25);
+                    const domainMin = Math.max(0, Math.floor(minVal * 0.8));
 
                     return (
                       <div key={ex.id} className="bg-[#161616] p-6 rounded-3xl border border-gray-800 shadow-xl">
@@ -277,12 +267,18 @@ export default function CoachDashboard() {
                             <div className="text-[8px] text-gray-600 uppercase font-bold">ALL-TIME PEAK</div>
                           </div>
                         </div>
-                        <div className="h-32 w-full">
+                        <div className="h-40 w-full">
                           <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData} margin={{ top: 20, right: 10, bottom: 0, left: 0 }}>
+                            <LineChart data={chartData} margin={{ top: 25, right: 35, bottom: 20, left: 10 }}>
                               <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
-                              <XAxis dataKey="date" stroke="#444" tick={{fill: '#666', fontSize: 10}} tickMargin={8} />
-                              <YAxis hide={true} domain={[0, domainMax]} />
+                              <XAxis 
+                                dataKey="date" 
+                                stroke="#444" 
+                                tick={{fill: '#888', fontSize: 10}} 
+                                tickMargin={10}
+                                padding={{ left: 25, right: 25 }}
+                              />
+                              <YAxis hide={true} domain={[domainMin, domainMax]} />
                               <Tooltip 
                                 contentStyle={{ backgroundColor: '#111', border: '1px solid #444', borderRadius: '8px', fontSize: '10px' }}
                                 itemStyle={{ color: '#fff' }}
@@ -303,14 +299,10 @@ export default function CoachDashboard() {
                       </div>
                     );
                   })}
-                  {(!selectedProgressWorkout || !selectedClient.plan?.[selectedProgressWorkout]) && (
-                    <div className="col-span-full py-20 text-center text-gray-600 italic">Wybierz plan treningowy, aby zobaczyć wykresy.</div>
-                  )}
                 </div>
               </div>
             )}
 
-            {/* TAB: POMIARY I CARDIO */}
             {activeTab === 'extras' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
                 <div className="bg-[#161616] p-8 rounded-3xl border border-gray-800 shadow-xl">

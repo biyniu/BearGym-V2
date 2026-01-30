@@ -1,18 +1,18 @@
 
 import React, { useContext, useState, useRef, useEffect } from 'react';
 import { AppContext } from '../App';
-import { storage } from '../services/storage';
+import { storage, remoteStorage } from '../services/storage';
 import { CLIENT_CONFIG } from '../constants';
 import { Exercise, WorkoutPlan, CardioSession, WorkoutHistoryEntry, ExerciseType } from '../types';
-import { LineChart, Line, ResponsiveContainer } from 'recharts';
 
 declare var html2pdf: any;
 
 export default function SettingsView() {
-  const { settings, updateSettings, playAlarm, workouts, updateWorkouts, logo } = useContext(AppContext);
+  const { settings, updateSettings, playAlarm, workouts, updateWorkouts, clientCode, syncData } = useContext(AppContext);
   const [selectedWorkoutId, setSelectedWorkoutId] = useState<string>("");
   const [editingExerciseIdx, setEditingExerciseIdx] = useState<number | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   
   const [cardioStartDate, setCardioStartDate] = useState(() => {
     const date = new Date();
@@ -83,7 +83,7 @@ export default function SettingsView() {
     const data: any = {};
     for(let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if(key && (key.startsWith(CLIENT_CONFIG.storageKey) || key === 'app_settings')) {
+        if(key && (key.startsWith(CLIENT_CONFIG.storageKey) || key === 'app_settings' || key === 'bear_gym_client_code' || key === 'bear_gym_client_name')) {
             data[key] = localStorage.getItem(key);
         }
     }
@@ -99,15 +99,60 @@ export default function SettingsView() {
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if(!file) return;
-    if(!window.confirm("To nadpisze obecne dane treningowe. Kontynuować?")) return;
+    if(!window.confirm("To nadpisze obecne dane i zsynchronizuje je z chmurą. Kontynuować?")) return;
+    
+    setIsImporting(true);
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
         try {
             const data = JSON.parse(event.target?.result as string);
+            
+            // 1. Zapisz wszystko do localStorage
             Object.keys(data).forEach(key => localStorage.setItem(key, data[key]));
-            alert("Dane zaimportowane pomyślnie!");
+            
+            // 2. Pobierz kod klienta
+            const codeToSync = data['bear_gym_client_code'] || clientCode;
+            
+            if (codeToSync) {
+              // Blokujemy initData przed pobieraniem starych danych z chmury podczas przeładowania
+              localStorage.setItem('is_syncing', 'true');
+
+              // 3. Budujemy mapę historii bezpośrednio z zaimportowanych danych
+              const historyToSync: Record<string, any[]> = {};
+              const historyPrefix = `${CLIENT_CONFIG.storageKey}_history_`;
+              
+              Object.keys(data).forEach(key => {
+                if (key.startsWith(historyPrefix)) {
+                  const wId = key.replace(historyPrefix, '');
+                  try {
+                    historyToSync[wId] = JSON.parse(data[key]);
+                  } catch(e) { /* ignore */ }
+                }
+              });
+
+              // 4. Pobieramy extras
+              const cardioToSync = JSON.parse(data[`${CLIENT_CONFIG.storageKey}_cardio`] || '[]');
+              const measurementsToSync = JSON.parse(data[`${CLIENT_CONFIG.storageKey}_measurements`] || '[]');
+
+              // 5. Wysyłamy do chmury
+              await remoteStorage.saveToCloud(codeToSync, 'history', historyToSync);
+              await remoteStorage.saveToCloud(codeToSync, 'extras', {
+                measurements: measurementsToSync,
+                cardio: cardioToSync
+              });
+
+              alert("Import zakończony! Dane zostały wysłane do Google Sheets.");
+            } else {
+              alert("Import zakończony lokalnie. Brak kodu do synchronizacji z chmurą.");
+            }
+
             window.location.reload();
-        } catch(err) { alert("Błąd importu pliku."); }
+        } catch(err) { 
+            console.error(err);
+            alert("Błąd importu pliku."); 
+            setIsImporting(false);
+            localStorage.removeItem('is_syncing');
+        }
     };
     reader.readAsText(file);
   };
@@ -171,9 +216,17 @@ export default function SettingsView() {
                 <i className="fas fa-file-download text-2xl mb-2"></i>
                 <span className="text-sm font-bold">Eksportuj</span>
             </button>
-            <button onClick={() => fileInputRef.current?.click()} className="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded flex flex-col items-center justify-center transition">
-                <i className="fas fa-file-upload text-2xl mb-2"></i>
-                <span className="text-sm font-bold">Importuj</span>
+            <button 
+              onClick={() => fileInputRef.current?.click()} 
+              disabled={isImporting}
+              className="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded flex flex-col items-center justify-center transition disabled:opacity-50"
+            >
+                {isImporting ? (
+                  <i className="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                ) : (
+                  <i className="fas fa-file-upload text-2xl mb-2"></i>
+                )}
+                <span className="text-sm font-bold">{isImporting ? 'Importowanie...' : 'Importuj'}</span>
             </button>
         </div>
         <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImport} />

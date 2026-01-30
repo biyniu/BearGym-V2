@@ -13,6 +13,7 @@ import CoachDashboard from './components/CoachDashboard';
 import InstallPrompt from './components/InstallPrompt';
 import { localStorageCache, remoteStorage, storage } from './services/storage';
 import { WorkoutsMap, AppSettings } from './types';
+import { CLIENT_CONFIG } from './constants';
 
 interface AppContextType {
   clientCode: string | null;
@@ -82,10 +83,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   );
 };
 
-/**
- * Komponent zarządzający dostępem (Route Guard).
- * Decyduje czy wyświetlić AuthView czy główny interfejs klienta.
- */
 const ClientRouteGuard: React.FC<{ 
   children: React.ReactNode, 
   clientCode: string | null, 
@@ -96,10 +93,7 @@ const ClientRouteGuard: React.FC<{
   const location = useLocation();
   const isCoachRoute = location.pathname === '/coach-admin';
 
-  // Panel trenera jest zawsze dostępny bezpośrednio
   if (isCoachRoute) return <>{children}</>;
-
-  // Dla tras klienta sprawdzamy auth
   if (!clientCode) return <AuthView onLogin={handleLogin} />;
   if (syncError) return <div className="p-10 text-center text-red-500">{syncError}</div>;
   if (!isReady) return (
@@ -122,6 +116,13 @@ export default function App() {
   const [syncError, setSyncError] = useState<string | null>(null);
 
   const initData = useCallback(async (code: string) => {
+    // Jeśli właśnie trwa synchronizacja (np. po imporcie), nie nadpisujemy danych z chmury
+    if (localStorage.getItem('is_syncing') === 'true') {
+        setIsReady(true);
+        localStorage.removeItem('is_syncing');
+        return;
+    }
+
     setSyncError(null);
     try {
       const result = await remoteStorage.fetchUserData(code);
@@ -173,10 +174,16 @@ export default function App() {
     if (clientCode) {
       let payload = data;
       if (type === 'history') {
+        // Zbieramy całą historię bezpośrednio z localStorage, aby mieć pewność, że wysyłamy aktualny stan (np. po usunięciu)
         const allHistory: Record<string, any[]> = {};
-        Object.keys(workouts).forEach(wId => {
-          allHistory[wId] = storage.getHistory(wId);
-        });
+        const prefix = `${CLIENT_CONFIG.storageKey}_history_`;
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith(prefix)) {
+            const workoutId = key.replace(prefix, '');
+            allHistory[workoutId] = JSON.parse(localStorage.getItem(key) || '[]');
+          }
+        }
         payload = allHistory;
       }
       await remoteStorage.saveToCloud(clientCode, type, payload);

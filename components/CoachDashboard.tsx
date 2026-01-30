@@ -277,7 +277,7 @@ export default function CoachDashboard() {
                             <div className="text-[8px] text-gray-600 uppercase font-bold">ALL-TIME PEAK</div>
                           </div>
                         </div>
-                        <div className="h-64 w-full">
+                        <div className="h-32 w-full">
                           <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={chartData} margin={{ top: 20, right: 10, bottom: 0, left: 0 }}>
                               <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />

@@ -1,10 +1,11 @@
+
 import React, { useContext, useState, useRef } from 'react';
 import { AppContext } from '../App';
 import { storage } from '../services/storage';
 import { WorkoutHistoryEntry } from '../types';
 
 export default function HistoryView() {
-  const { workouts } = useContext(AppContext);
+  const { workouts, syncData } = useContext(AppContext);
   const workoutIds = Object.keys(workouts);
   const [openSessions, setOpenSessions] = useState<{ [key: string]: boolean }>({});
   
@@ -66,7 +67,7 @@ export default function HistoryView() {
   };
   // ------------------------
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if(!optionsSession) return;
     const { wId, index } = optionsSession;
 
@@ -76,6 +77,7 @@ export default function HistoryView() {
     const newHistory = history.filter((_, i) => i !== index);
     
     storage.saveHistory(wId, newHistory);
+    await syncData('history', null);
     setOptionsSession(null);
     setRefreshTrigger(prev => prev + 1);
   };
@@ -90,17 +92,18 @@ export default function HistoryView() {
     setEditDateValue(date);
   };
 
-  const saveDate = (workoutId: string, index: number) => {
+  const saveDate = async (workoutId: string, index: number) => {
     const history = storage.getHistory(workoutId);
     if(history[index]) {
         history[index].date = editDateValue;
         storage.saveHistory(workoutId, history);
+        await syncData('history', null);
     }
     setEditingDateId(null);
     setRefreshTrigger(prev => prev + 1);
   };
 
-  const handleManualSubmit = () => {
+  const handleManualSubmit = async () => {
     if(!manualForm.workoutId) return;
     
     // Formatowanie daty na styl aplikacji (DD.MM.YYYY, HH:MM)
@@ -122,6 +125,7 @@ export default function HistoryView() {
     history.sort((a,b) => b.timestamp - a.timestamp);
 
     storage.saveHistory(manualForm.workoutId, history);
+    await syncData('history', null);
     
     setIsAddModalOpen(false);
     setRefreshTrigger(prev => prev + 1);

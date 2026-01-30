@@ -157,18 +157,22 @@ export default function ActiveWorkout() {
 
     workoutData.exercises.forEach(ex => {
       let summaryParts: string[] = [];
+      const rawType = ex.type || 'standard';
+      // Fix: Removed 'rips_only' comparison which appeared to be a typo and caused a TypeScript type mismatch.
+      const normalizedType = (rawType === 'reps' || rawType === 'reps_only') ? 'reps_only' : rawType;
+      
       for(let i=1; i<=ex.sets; i++) {
         const uid = `input_${id}_${ex.id}_s${i}`;
         const kg = storage.getTempInput(`${uid}_kg`);
         const reps = storage.getTempInput(`${uid}_reps`);
         const time = storage.getTempInput(`${uid}_time`);
 
-        if (ex.type === 'standard') {
+        if (normalizedType === 'standard') {
             if (kg && reps) summaryParts.push(`${kg}kg x ${reps}`);
             else if (reps) summaryParts.push(`${reps}p`);
-        } else if (ex.type === 'reps_only') {
+        } else if (normalizedType === 'reps_only') {
             if (reps) summaryParts.push(`${reps}p`);
-        } else if (ex.type === 'time') {
+        } else if (normalizedType === 'time') {
             if (time && time !== '0') summaryParts.push(`${time}s`);
         }
       }
@@ -197,9 +201,7 @@ export default function ActiveWorkout() {
     history.unshift(newEntry);
     storage.saveHistory(id, history);
     
-    // Synchronizacja z chmurą
     await syncData('history', history);
-    
     storage.clearTempInputs(id, workoutData.exercises);
     setShowSuccessModal(true);
   };
@@ -265,6 +267,17 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index, playAlarm }: { ex
   const [note, setNote] = useState(storage.getTempInput(noteId));
   const [fillVersion, setFillVersion] = useState(0);
 
+  // Inteligentne mapowanie typów (naprawia problem z aliasami typu 'reps')
+  const getEffectiveType = (type: string) => {
+    const t = type?.toLowerCase();
+    if (t === 'time') return 'time';
+    // Fix: Removed 'rips_only' comparison to maintain consistency and avoid potential type errors.
+    if (t === 'reps' || t === 'reps_only') return 'reps_only';
+    return 'standard';
+  };
+
+  const effectiveType = getEffectiveType(exercise.type);
+
   const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNote(e.target.value);
     storage.saveTempInput(noteId, e.target.value);
@@ -311,7 +324,7 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index, playAlarm }: { ex
         <div className="truncate">
             <span className="text-red-400 font-bold">OSTATNIO:</span> <span className="text-gray-400">{lastResult || 'Brak danych'}</span>
         </div>
-        {lastResult && exercise.type === 'standard' && (
+        {lastResult && effectiveType === 'standard' && (
             <button 
                 onClick={handleFillWeights}
                 className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded border border-gray-600 flex items-center ml-2"
@@ -328,17 +341,17 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index, playAlarm }: { ex
           return (
             <div key={setNum} className="flex items-center py-2 space-x-2 border-b border-gray-800 last:border-0">
               <span className="text-gray-500 text-xs w-6 font-bold pt-1">S{setNum}</span>
-              <div className={`flex-grow grid ${exercise.type === 'standard' ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
-                {exercise.type === 'standard' && (
+              <div className={`flex-grow grid ${effectiveType === 'standard' ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+                {effectiveType === 'standard' && (
                   <>
                      <SavedInput key={`${uId}_kg_${fillVersion}`} id={`${uId}_kg`} placeholder="kg" />
                      <SavedInput key={`${uId}_reps_${fillVersion}`} id={`${uId}_reps`} placeholder="powt" />
                   </>
                 )}
-                {exercise.type === 'reps_only' && (
+                {effectiveType === 'reps_only' && (
                    <SavedInput key={`${uId}_reps_${fillVersion}`} id={`${uId}_reps`} placeholder="powtórzenia" />
                 )}
-                {exercise.type === 'time' && (
+                {effectiveType === 'time' && (
                   <Stopwatch 
                     id={`${uId}_time`} 
                     initialValue={storage.getTempInput(`${uId}_time`)} 

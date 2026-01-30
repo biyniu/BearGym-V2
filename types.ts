@@ -1,5 +1,5 @@
 
-export type ExerciseType = 'standard' | 'time' | 'reps_only';
+export type ExerciseType = 'standard' | 'time' | 'reps_only' | 'reps';
 
 export interface WarmupExercise {
   name: string;

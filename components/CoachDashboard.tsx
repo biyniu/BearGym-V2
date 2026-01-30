@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { remoteStorage } from '../services/storage';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function CoachDashboard() {
   const [masterCode, setMasterCode] = useState('');
@@ -8,7 +9,8 @@ export default function CoachDashboard() {
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'plan' | 'history' | 'extras'>('plan');
+  const [activeTab, setActiveTab] = useState<'plan' | 'history' | 'extras' | 'progress'>('plan');
+  const [selectedProgressWorkout, setSelectedProgressWorkout] = useState<string>("");
 
   const handleLogin = async () => {
     setLoading(true);
@@ -25,8 +27,50 @@ export default function CoachDashboard() {
   const loadClientDetail = async (clientId: string) => {
     setLoading(true);
     const res = await remoteStorage.fetchCoachClientDetail(masterCode, clientId);
-    if (res.success) setSelectedClient(res);
+    if (res.success) {
+      setSelectedClient(res);
+      // Ustaw domyślny plan dla zakładki progresu
+      if (res.plan) {
+        setSelectedProgressWorkout(Object.keys(res.plan)[0] || "");
+      }
+    }
     setLoading(false);
+  };
+
+  // Funkcja do wyciągania danych do wykresów (analogiczna do ProgressView klienta)
+  const getExerciseChartData = (workoutId: string, exerciseId: string) => {
+    if (!selectedClient?.history) return [];
+    const history = selectedClient.history[workoutId];
+    if (!history || history.length < 2) return [];
+
+    return history.slice().reverse().map((entry: any) => {
+      const resultStr = entry.results[exerciseId];
+      if (!resultStr) return null;
+      const matches = resultStr.matchAll(/(\d+(?:[.,]\d+)?)\s*kg/gi);
+      let maxWeight = 0;
+      let found = false;
+      for (const match of matches) {
+        const weightVal = parseFloat(match[1].replace(',', '.'));
+        if (!isNaN(weightVal)) {
+          if (weightVal > maxWeight) maxWeight = weightVal;
+          found = true;
+        }
+      }
+      if (!found) return null;
+      return {
+        date: entry.date.split(' ')[0].slice(0, 5),
+        weight: maxWeight
+      };
+    }).filter(Boolean);
+  };
+
+  const CustomLabel = (props: any) => {
+    const { x, y, value } = props;
+    return (
+      <text x={x} y={y - 10} fill="#fff" textAnchor="middle" fontSize={10} fontWeight="bold">
+        {value}
+      </text>
+    );
   };
 
   if (!isAuthorized) {
@@ -88,63 +132,233 @@ export default function CoachDashboard() {
       {/* MAIN CONTENT */}
       <main className="flex-grow overflow-y-auto p-10 bg-gradient-to-br from-[#0f0f0f] to-[#050505]">
         {selectedClient ? (
-          <div className="max-w-5xl mx-auto animate-fade-in">
-            <div className="flex justify-between items-end mb-8">
+          <div className="max-w-6xl mx-auto animate-fade-in">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-8 gap-4">
               <div>
                 <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter">{selectedClient.name}</h1>
                 <p className="text-gray-500 font-mono">ID KLIENTA: {selectedClient.code}</p>
               </div>
-              <div className="flex bg-[#161616] p-1 rounded-xl border border-gray-800">
+              <div className="flex bg-[#161616] p-1 rounded-xl border border-gray-800 overflow-x-auto">
                 <TabBtn active={activeTab === 'plan'} onClick={() => setActiveTab('plan')} label="PLAN" icon="fa-dumbbell" />
                 <TabBtn active={activeTab === 'history'} onClick={() => setActiveTab('history')} label="HISTORIA" icon="fa-history" />
+                <TabBtn active={activeTab === 'progress'} onClick={() => setActiveTab('progress')} label="PROGRES" icon="fa-chart-line" />
                 <TabBtn active={activeTab === 'extras'} onClick={() => setActiveTab('extras')} label="POMIARY" icon="fa-ruler" />
               </div>
             </div>
 
-            {activeTab === 'plan' && <div className="bg-[#161616] p-8 rounded-3xl border border-gray-800 shadow-xl">
-               <h3 className="text-lg font-bold text-white mb-4">Aktualny Plan Treningowy</h3>
-               <pre className="bg-black p-6 rounded-2xl border border-gray-800 text-blue-400 font-mono text-xs overflow-x-auto">
-                 {JSON.stringify(selectedClient.plan, null, 2)}
-               </pre>
-               <p className="mt-4 text-gray-500 text-xs italic">Edycja wizualna w przygotowaniu. Obecnie zmiany wprowadź w arkuszu Google (Kolumna C).</p>
-            </div>}
+            {/* TAB: PLAN TRENINGOWY (CZYTELNY) */}
+            {activeTab === 'plan' && (
+              <div className="space-y-8 animate-fade-in">
+                {Object.entries(selectedClient.plan || {}).map(([id, workout]: any) => (
+                  <div key={id} className="bg-[#161616] rounded-3xl border border-gray-800 overflow-hidden shadow-xl">
+                    <div className="bg-gradient-to-r from-blue-900/20 to-transparent p-6 border-b border-gray-800 flex justify-between items-center">
+                      <h3 className="text-xl font-black text-white italic uppercase">{workout.title}</h3>
+                      <span className="bg-blue-600/20 text-blue-400 text-[10px] px-2 py-1 rounded-full font-bold border border-blue-500/30">TRENING AKTYWNY</span>
+                    </div>
+                    <div className="p-6">
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="text-gray-500 border-b border-gray-800 uppercase text-[10px] font-black tracking-widest">
+                            <th className="pb-4 pl-2">#</th>
+                            <th className="pb-4">Ćwiczenie</th>
+                            <th className="pb-4 text-center">Serie</th>
+                            <th className="pb-4 text-center">Zakres</th>
+                            <th className="pb-4 text-center">Tempo</th>
+                            <th className="pb-4 text-center">RIR</th>
+                            <th className="pb-4 text-center">Przerwa</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-800">
+                          {workout.exercises.map((ex: any, idx: number) => (
+                            <tr key={ex.id} className="hover:bg-white/[0.02] transition">
+                              <td className="py-4 pl-2 font-mono text-blue-500">{idx + 1}</td>
+                              <td className="py-4">
+                                <div className="font-bold text-white">{ex.name}</div>
+                                <div className="text-[10px] text-gray-500 italic">{ex.pl}</div>
+                              </td>
+                              <td className="py-4 text-center font-bold text-white">{ex.sets}</td>
+                              <td className="py-4 text-center font-mono text-green-400">{ex.reps}</td>
+                              <td className="py-4 text-center font-mono text-blue-400">{ex.tempo}</td>
+                              <td className="py-4 text-center font-mono text-red-400">{ex.rir}</td>
+                              <td className="py-4 text-center font-mono text-gray-400">{ex.rest}s</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+                {(!selectedClient.plan || Object.keys(selectedClient.plan).length === 0) && (
+                  <div className="text-center py-20 bg-[#161616] rounded-3xl border border-gray-800">
+                    <i className="fas fa-folder-open text-6xl text-gray-700 mb-4"></i>
+                    <p className="text-gray-500 font-bold">Brak przypisanego planu treningowego.</p>
+                  </div>
+                )}
+              </div>
+            )}
 
-            {activeTab === 'history' && <div className="space-y-4">
-               {Object.entries(selectedClient.history || {}).map(([id, sessions]: any) => (
-                 <div key={id} className="bg-[#161616] p-6 rounded-3xl border border-gray-800">
-                    <h3 className="text-white font-bold mb-4 border-b border-gray-800 pb-2">{id}</h3>
-                    <div className="space-y-3">
-                      {sessions.map((s: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center text-sm p-3 bg-black/30 rounded-xl border border-gray-800 hover:border-gray-600 transition">
-                           <span className="font-bold text-blue-400">{s.date}</span>
-                           <span className="text-gray-500 text-xs italic">{Object.keys(s.results).length} ćwiczeń wykonanych</span>
+            {/* TAB: SZCZEGÓŁOWA HISTORIA */}
+            {activeTab === 'history' && (
+              <div className="space-y-6 animate-fade-in">
+                {Object.entries(selectedClient.history || {}).map(([id, sessions]: any) => {
+                  const planName = selectedClient.plan?.[id]?.title || id;
+                  return (
+                    <div key={id} className="bg-[#161616] rounded-3xl border border-gray-800 overflow-hidden shadow-xl">
+                      <div className="p-6 border-b border-gray-800 bg-black/20">
+                        <h3 className="text-white font-black italic uppercase tracking-tighter text-lg">{planName}</h3>
+                      </div>
+                      <div className="divide-y divide-gray-800">
+                        {sessions.map((s: any, idx: number) => (
+                          <div key={idx} className="p-6">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-2">
+                              <span className="text-blue-400 font-black text-sm uppercase tracking-tighter flex items-center">
+                                <i className="fas fa-calendar-check mr-2"></i> SESJA: {s.date}
+                              </span>
+                              <span className="text-[10px] text-gray-600 font-bold bg-black px-2 py-1 rounded">
+                                {Object.keys(s.results).length} ĆWICZENIA WYKONANE
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {Object.entries(s.results).map(([exId, result]: any) => {
+                                const exerciseName = selectedClient.plan?.[id]?.exercises.find((e: any) => e.id === exId)?.name || exId;
+                                return (
+                                  <div key={exId} className="bg-black/30 p-3 rounded-xl border border-gray-800">
+                                    <div className="text-[10px] font-black text-gray-500 uppercase mb-1 truncate">{exerciseName}</div>
+                                    <div className="text-xs text-white font-mono break-words leading-relaxed">{result}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* TAB: WYKRESY PROGRESU */}
+            {activeTab === 'progress' && (
+              <div className="animate-fade-in space-y-8">
+                <div className="bg-[#161616] p-6 rounded-3xl border border-gray-800 flex flex-col md:flex-row items-center gap-4 sticky top-4 z-10 shadow-2xl">
+                  <span className="text-gray-400 text-xs font-black uppercase tracking-widest whitespace-nowrap">Wybierz Trening:</span>
+                  <div className="flex-grow flex gap-2 overflow-x-auto pb-2 md:pb-0">
+                    {Object.keys(selectedClient.plan || {}).map(pId => (
+                      <button 
+                        key={pId}
+                        onClick={() => setSelectedProgressWorkout(pId)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap border ${selectedProgressWorkout === pId ? 'bg-blue-600 border-blue-500 text-white' : 'bg-black border-gray-800 text-gray-500 hover:text-gray-300'}`}
+                      >
+                        {selectedClient.plan[pId].title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-20">
+                  {selectedClient.plan?.[selectedProgressWorkout]?.exercises.map((ex: any) => {
+                    const chartData = getExerciseChartData(selectedProgressWorkout, ex.id);
+                    if (chartData.length < 2) return null;
+                    
+                    const weights = chartData.map(d => d.weight);
+                    const maxVal = Math.max(...weights);
+                    const domainMax = Math.ceil(maxVal * 1.2);
+
+                    return (
+                      <div key={ex.id} className="bg-[#161616] p-6 rounded-3xl border border-gray-800 shadow-xl">
+                        <div className="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
+                          <div>
+                            <h4 className="text-white font-black italic uppercase text-sm leading-tight">{ex.name}</h4>
+                            <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">PROGRES SIŁOWY (MAX KG)</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs font-black text-blue-500">{maxVal} KG</div>
+                            <div className="text-[8px] text-gray-600 uppercase font-bold">ALL-TIME PEAK</div>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                 </div>
-               ))}
-            </div>}
+                        <div className="h-64 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData} margin={{ top: 20, right: 10, bottom: 0, left: 0 }}>
+                              <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
+                              <XAxis dataKey="date" stroke="#444" tick={{fill: '#666', fontSize: 10}} tickMargin={8} />
+                              <YAxis hide={true} domain={[0, domainMax]} />
+                              <Tooltip 
+                                contentStyle={{ backgroundColor: '#111', border: '1px solid #444', borderRadius: '8px', fontSize: '10px' }}
+                                itemStyle={{ color: '#fff' }}
+                                formatter={(v: any) => [`${v} kg`, 'Ciężar']}
+                              />
+                              <Line 
+                                type="monotone" 
+                                dataKey="weight" 
+                                stroke="#3b82f6" 
+                                strokeWidth={3} 
+                                dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#161616' }} 
+                                activeDot={{ r: 6, fill: '#fff' }}
+                                label={<CustomLabel />}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {(!selectedProgressWorkout || !selectedClient.plan?.[selectedProgressWorkout]) && (
+                    <div className="col-span-full py-20 text-center text-gray-600 italic">Wybierz plan treningowy, aby zobaczyć wykresy.</div>
+                  )}
+                </div>
+              </div>
+            )}
 
-            {activeTab === 'extras' && <div className="grid grid-cols-2 gap-6">
-                <div className="bg-[#161616] p-6 rounded-3xl border border-gray-800">
-                  <h3 className="text-white font-bold mb-4">Pomiary Ciała</h3>
-                  {selectedClient.extras?.measurements?.map((m: any) => (
-                    <div key={m.id} className="flex justify-between items-center text-xs py-2 border-b border-gray-800 last:border-0">
-                      <span className="text-gray-500">{m.date}</span>
-                      <span className="text-white font-bold">{m.weight}kg / {m.waist}cm</span>
-                    </div>
-                  ))}
+            {/* TAB: POMIARY I CARDIO */}
+            {activeTab === 'extras' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
+                <div className="bg-[#161616] p-8 rounded-3xl border border-gray-800 shadow-xl">
+                  <div className="flex items-center space-x-3 mb-6">
+                    <i className="fas fa-ruler-horizontal text-green-500"></i>
+                    <h3 className="text-white font-black italic uppercase">Pomiary Ciała</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {selectedClient.extras?.measurements?.length > 0 ? (
+                      selectedClient.extras.measurements.slice().reverse().map((m: any) => (
+                        <div key={m.id} className="flex justify-between items-center p-4 bg-black/30 rounded-2xl border border-gray-800 hover:border-gray-700 transition">
+                          <div className="text-xs font-bold text-gray-500">{m.date}</div>
+                          <div className="text-sm font-black text-white">
+                            {m.weight} <span className="text-[10px] text-gray-600 font-normal">KG</span>
+                            <span className="mx-3 text-gray-800">|</span>
+                            {m.waist} <span className="text-[10px] text-gray-600 font-normal">CM</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-600 text-sm italic">Brak zapisanych pomiarów.</p>
+                    )}
+                  </div>
                 </div>
-                <div className="bg-[#161616] p-6 rounded-3xl border border-gray-800">
-                  <h3 className="text-white font-bold mb-4">Log Cardio</h3>
-                  {selectedClient.extras?.cardio?.map((c: any) => (
-                    <div key={c.id} className="flex justify-between items-center text-xs py-2 border-b border-gray-800 last:border-0">
-                      <span className="text-gray-500">{c.date}</span>
-                      <span className="text-red-500 font-bold">{c.duration} ({c.type})</span>
-                    </div>
-                  ))}
+
+                <div className="bg-[#161616] p-8 rounded-3xl border border-gray-800 shadow-xl">
+                  <div className="flex items-center space-x-3 mb-6">
+                    <i className="fas fa-heartbeat text-red-500"></i>
+                    <h3 className="text-white font-black italic uppercase">Logi Cardio</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {selectedClient.extras?.cardio?.length > 0 ? (
+                      selectedClient.extras.cardio.map((c: any) => (
+                        <div key={c.id} className="flex justify-between items-center p-4 bg-black/30 rounded-2xl border border-gray-800 hover:border-gray-700 transition">
+                          <div>
+                            <div className="text-[10px] font-black text-red-500 uppercase tracking-widest">{c.type}</div>
+                            <div className="text-xs font-bold text-gray-500">{c.date}</div>
+                          </div>
+                          <div className="text-sm font-black text-white italic uppercase tracking-tighter">{c.duration}</div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-600 text-sm italic">Brak zapisanych sesji cardio.</p>
+                    )}
+                  </div>
                 </div>
-            </div>}
+              </div>
+            )}
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center opacity-20">
@@ -161,10 +375,10 @@ function TabBtn({ active, onClick, label, icon }: any) {
   return (
     <button 
       onClick={onClick}
-      className={`px-6 py-3 rounded-lg text-xs font-bold transition flex items-center space-x-2 ${active ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+      className={`px-6 py-3 rounded-lg text-xs font-black transition flex items-center space-x-2 whitespace-nowrap ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-gray-500 hover:text-gray-300'}`}
     >
       <i className={`fas ${icon}`}></i>
-      <span>{label}</span>
+      <span className="uppercase tracking-tighter italic">{label}</span>
     </button>
   );
 }

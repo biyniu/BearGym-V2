@@ -3,7 +3,7 @@ import React, { useContext, useState, useRef, useEffect } from 'react';
 import { AppContext } from '../App';
 import { storage } from '../services/storage';
 import { CLIENT_CONFIG } from '../constants';
-import { Exercise, WorkoutPlan, CardioSession, WorkoutHistoryEntry } from '../types';
+import { Exercise, WorkoutPlan, CardioSession, WorkoutHistoryEntry, ExerciseType } from '../types';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 
 declare var html2pdf: any;
@@ -42,7 +42,7 @@ export default function SettingsView() {
   };
 
   const handleDeleteExercise = (idx: number) => {
-    if (!window.confirm("Usunąć trwale?")) return;
+    if (!window.confirm("Czy na pewno chcesz trwale usunąć to ćwiczenie z planu?")) return;
     const currentExercises = [...workouts[selectedWorkoutId].exercises];
     currentExercises.splice(idx, 1);
     updatePlanExercises(selectedWorkoutId, currentExercises);
@@ -212,22 +212,37 @@ export default function SettingsView() {
         {selectedWorkoutId && (
           <div className="border-t border-gray-700 pt-4">
              {editingExerciseIdx !== null ? (
-               <ExerciseForm exercise={workouts[selectedWorkoutId].exercises[editingExerciseIdx]} onSave={handleEditSave} onCancel={() => setEditingExerciseIdx(null)} onDelete={() => handleDeleteExercise(editingExerciseIdx)} />
+               <ExerciseForm 
+                 exercise={workouts[selectedWorkoutId].exercises[editingExerciseIdx]} 
+                 onSave={handleEditSave} 
+                 onCancel={() => setEditingExerciseIdx(null)} 
+                 onDelete={() => handleDeleteExercise(editingExerciseIdx)} 
+               />
              ) : (
                <>
                  <ul className="space-y-2">
                    {workouts[selectedWorkoutId].exercises.map((ex, idx) => (
-                     <li key={idx} className="bg-gray-800 p-3 rounded flex justify-between items-center border border-gray-700">
-                       <div className="flex-1 cursor-pointer" onClick={() => setEditingExerciseIdx(idx)}><div className="font-bold text-sm text-white">{idx+1}. {ex.name}</div></div>
-                       <div className="flex space-x-2 ml-2">
-                         {idx > 0 && <button onClick={() => handleMove(idx, -1)} className="text-gray-400 p-2 hover:text-white"><i className="fas fa-arrow-up"></i></button>}
-                         {idx < workouts[selectedWorkoutId].exercises.length - 1 && <button onClick={() => handleMove(idx, 1)} className="text-gray-400 p-2 hover:text-white"><i className="fas fa-arrow-down"></i></button>}
+                     <li key={idx} className="bg-gray-800 p-3 rounded flex justify-between items-center border border-gray-700 group">
+                       <div className="flex-1 cursor-pointer" onClick={() => setEditingExerciseIdx(idx)}>
+                          <div className="font-bold text-sm text-white">{idx+1}. {ex.name}</div>
+                          <div className="text-[10px] text-gray-500">{ex.type === 'standard' ? 'Ciężar + Powt' : ex.type === 'time' ? 'Na czas' : 'Tylko powt'}</div>
+                       </div>
+                       <div className="flex space-x-1 ml-2">
+                         {idx > 0 && <button onClick={() => handleMove(idx, -1)} className="text-gray-400 p-2 hover:text-white transition"><i className="fas fa-arrow-up"></i></button>}
+                         {idx < workouts[selectedWorkoutId].exercises.length - 1 && <button onClick={() => handleMove(idx, 1)} className="text-gray-400 p-2 hover:text-white transition"><i className="fas fa-arrow-down"></i></button>}
+                         <button 
+                            onClick={(e) => { e.stopPropagation(); handleDeleteExercise(idx); }} 
+                            className="text-red-900 hover:text-red-500 p-2 transition ml-1"
+                            title="Usuń ćwiczenie"
+                          >
+                            <i className="fas fa-trash-alt"></i>
+                          </button>
                        </div>
                      </li>
                    ))}
                  </ul>
-                 <button onClick={handleAddExercise} className="mt-4 w-full bg-green-700 hover:bg-green-600 text-white py-3 rounded font-bold transition">DODAJ ĆWICZENIE</button>
-                 <p className="text-[10px] text-gray-500 mt-4 text-center italic">Zmiany w edytorze są synchronizowane z Twoim kontem w chmurze.</p>
+                 <button onClick={handleAddExercise} className="mt-4 w-full bg-green-700 hover:bg-green-600 text-white py-3 rounded font-bold transition shadow-lg">DODAJ NOWE ĆWICZENIE</button>
+                 <p className="text-[10px] text-gray-500 mt-4 text-center italic">Wszystkie zmiany są zapisywane automatycznie w chmurze.</p>
                </>
              )}
           </div>
@@ -267,22 +282,68 @@ export default function SettingsView() {
 const ExerciseForm = ({ exercise, onSave, onCancel, onDelete }: { exercise: Exercise, onSave: (e: Exercise) => void, onCancel: () => void, onDelete: () => void }) => {
   const [formData, setFormData] = useState<Exercise>({ ...exercise });
   const handleChange = (field: keyof Exercise, value: any) => setFormData(prev => ({ ...prev, [field]: value }));
+  
   return (
-    <div className="bg-gray-800 p-4 rounded border border-gray-600 animate-fade-in">
-      <h4 className="font-bold text-white mb-3 text-lg">Edycja: {formData.name}</h4>
-      <div className="space-y-3 text-sm">
-        <input type="text" value={formData.name} onChange={e => handleChange('name', e.target.value)} className="w-full bg-gray-900 text-white p-3 rounded border border-gray-700" placeholder="Nazwa" />
-        <input type="text" value={formData.pl} onChange={e => handleChange('pl', e.target.value)} className="w-full bg-gray-900 text-white p-3 rounded border border-gray-700" placeholder="Opis" />
+    <div className="bg-gray-800 p-5 rounded-xl border border-gray-600 animate-fade-in shadow-xl">
+      <div className="flex justify-between items-center mb-4">
+        <h4 className="font-black text-white text-lg uppercase italic tracking-tighter">Edycja Ćwiczenia</h4>
+        <button onClick={onDelete} className="bg-red-600/20 text-red-500 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center">
+            <i className="fas fa-trash-alt mr-2"></i> USUŃ
+        </button>
+      </div>
+
+      <div className="space-y-4 text-sm">
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1 block">Nazwa (EN / PL)</label>
+          <input type="text" value={formData.name} onChange={e => handleChange('name', e.target.value)} className="w-full bg-gray-900 text-white p-3 rounded border border-gray-700 mb-2 focus:border-red-500 outline-none" placeholder="Nazwa oryginalna" />
+          <input type="text" value={formData.pl} onChange={e => handleChange('pl', e.target.value)} className="w-full bg-gray-900 text-white p-3 rounded border border-gray-700 focus:border-red-500 outline-none" placeholder="Polski opis" />
+        </div>
+
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1 block">Logowanie wyników</label>
+          <select 
+            value={formData.type} 
+            onChange={e => handleChange('type', e.target.value as ExerciseType)}
+            className="w-full bg-gray-900 text-white p-3 rounded border border-gray-700 focus:border-red-500 outline-none"
+          >
+            <option value="standard">Standard (Ciężar + Powtórzenia)</option>
+            <option value="reps_only">Tylko Powtórzenia</option>
+            <option value="reps">Tylko Powtórzenia (Alias)</option>
+            <option value="time">Na czas (Stoper)</option>
+          </select>
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
-          <input type="number" value={formData.sets} onChange={e => handleChange('sets', parseInt(e.target.value))} className="w-full bg-gray-900 text-white p-3 rounded border border-gray-700" placeholder="Serie" />
-          <input type="number" value={formData.rest} onChange={e => handleChange('rest', parseInt(e.target.value))} className="w-full bg-gray-900 text-white p-3 rounded border border-gray-700" placeholder="Przerwa" />
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1 block">Serie</label>
+            <input type="number" value={formData.sets} onChange={e => handleChange('sets', parseInt(e.target.value))} className="w-full bg-gray-900 text-white p-3 rounded border border-gray-700 focus:border-red-500 outline-none" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1 block">Przerwa (s)</label>
+            <input type="number" value={formData.rest} onChange={e => handleChange('rest', parseInt(e.target.value))} className="w-full bg-gray-900 text-white p-3 rounded border border-gray-700 focus:border-red-500 outline-none" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1 block">Zakres</label>
+            <input type="text" value={formData.reps} onChange={e => handleChange('reps', e.target.value)} className="w-full bg-gray-900 text-white p-3 rounded border border-gray-700 focus:border-red-500 outline-none" placeholder="8-10" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1 block">Tempo</label>
+            <input type="text" value={formData.tempo} onChange={e => handleChange('tempo', e.target.value)} className="w-full bg-gray-900 text-white p-3 rounded border border-gray-700 focus:border-red-500 outline-none" placeholder="2011" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1 block">RIR</label>
+            <input type="text" value={formData.rir} onChange={e => handleChange('rir', e.target.value)} className="w-full bg-gray-900 text-white p-3 rounded border border-gray-700 focus:border-red-500 outline-none" placeholder="1-2" />
+          </div>
         </div>
       </div>
-      <div className="flex space-x-2 mt-4">
-        <button onClick={() => onSave(formData)} className="flex-1 bg-green-600 text-white py-3 rounded font-bold">ZAPISZ</button>
-        <button onClick={onCancel} className="flex-1 bg-gray-600 text-white py-3 rounded">ANULUJ</button>
+      
+      <div className="flex space-x-2 mt-6">
+        <button onClick={() => onSave(formData)} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3.5 rounded-lg font-bold shadow-lg transition transform active:scale-95">ZAPISZ ZMIANY</button>
+        <button onClick={onCancel} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3.5 rounded-lg font-bold transition">ANULUJ</button>
       </div>
-      <button onClick={onDelete} className="w-full mt-2 bg-red-900 text-red-200 py-2 rounded text-xs">Usuń ćwiczenie</button>
     </div>
   );
 };

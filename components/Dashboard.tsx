@@ -139,7 +139,8 @@ function CalendarWidget({ workouts, logo }: { workouts: any, logo: string }) {
         Object.keys(workouts).forEach(id => {
             const hist = storage.getHistory(id);
             hist.forEach(h => {
-                const datePart = h.date.split(' ')[0]; 
+                // Czyścimy datę z przecinków i spacji, aby wyciągnąć samo DD.MM.YYYY
+                const datePart = h.date.split(/[ ,(]/)[0].replace(/,/g, ''); 
                 ensureDate(datePart);
                 status[datePart].strength = true;
             });
@@ -148,7 +149,7 @@ function CalendarWidget({ workouts, logo }: { workouts: any, logo: string }) {
         const cardio = storage.getCardioSessions();
         cardio.forEach(c => {
             const [y, m, d] = c.date.split('-');
-            const datePart = `${d}.${m}.${y}`;
+            const datePart = `${d.toString().padStart(2, '0')}.${m.toString().padStart(2, '0')}.${y}`;
             ensureDate(datePart);
             status[datePart].cardio = true;
         });

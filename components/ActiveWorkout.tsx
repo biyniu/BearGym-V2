@@ -139,6 +139,13 @@ export default function ActiveWorkout() {
   const workoutData = id ? workouts[id] : null;
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  
+  // Stan dla niestandardowej daty treningu
+  const [customDate, setCustomDate] = useState(() => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - offset).toISOString().slice(0, 16);
+  });
 
   useEffect(() => {
     const startTime = Date.now();
@@ -151,14 +158,20 @@ export default function ActiveWorkout() {
   if (!workoutData || !id) return <div className="text-center p-10 text-red-500">Nie znaleziono treningu.</div>;
 
   const handleFinish = async () => {
-    const dateStr = new Date().toLocaleDateString('pl-PL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    // Formatowanie daty z selektora lub obecnej
+    const d = new Date(customDate);
+    const day = d.getDate().toString().padStart(2, '0');
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const year = d.getFullYear();
+    const timeInDate = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = `${day}.${month}.${year}, ${timeInDate}`;
+
     let sessionResults: { [key: string]: string } = {};
     let hasData = false;
 
     workoutData.exercises.forEach(ex => {
       let summaryParts: string[] = [];
       const rawType = ex.type || 'standard';
-      // Fix: Removed 'rips_only' comparison which appeared to be a typo and caused a TypeScript type mismatch.
       const normalizedType = (rawType === 'reps' || rawType === 'reps_only') ? 'reps_only' : rawType;
       
       for(let i=1; i<=ex.sets; i++) {
@@ -194,11 +207,14 @@ export default function ActiveWorkout() {
     
     const newEntry = {
       date: finalDateStr,
-      timestamp: Date.now(),
+      timestamp: d.getTime(), // Używamy timestampu z wybranej daty
       results: sessionResults
     };
 
     history.unshift(newEntry);
+    // Sortujemy po timestampie, na wypadek gdyby dodano trening "wstecz"
+    history.sort((a: any, b: any) => b.timestamp - a.timestamp);
+    
     storage.saveHistory(id, history);
     
     await syncData('history', history);
@@ -210,11 +226,27 @@ export default function ActiveWorkout() {
     <div className="animate-fade-in pb-10 relative">
       {showSuccessModal && <SuccessModal onClose={() => navigate('/')} />}
 
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-white truncate max-w-[60%]">{workoutData.title}</h2>
-        <div className="bg-gray-800 px-3 py-1 rounded border border-gray-600 flex items-center space-x-2">
-            <i className="fas fa-stopwatch text-red-500"></i>
-            <span className="font-mono text-lg font-bold text-white">{formatTime(elapsedTime)}</span>
+      <div className="flex flex-col mb-6 space-y-4">
+        <div className="flex justify-between items-center">
+            <h2 className="text-xl font-bold text-white truncate max-w-[60%]">{workoutData.title}</h2>
+            <div className="bg-gray-800 px-3 py-1 rounded border border-gray-600 flex items-center space-x-2">
+                <i className="fas fa-stopwatch text-red-500"></i>
+                <span className="font-mono text-lg font-bold text-white">{formatTime(elapsedTime)}</span>
+            </div>
+        </div>
+        
+        {/* Selektor daty treningu */}
+        <div className="bg-[#1e1e1e] p-3 rounded-xl border border-gray-800 flex items-center justify-between">
+            <div className="flex items-center text-gray-400 text-xs font-bold">
+                <i className="fas fa-calendar-alt mr-2 text-blue-500"></i>
+                DATA TRENINGU:
+            </div>
+            <input 
+                type="datetime-local" 
+                value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+                className="bg-gray-900 text-white text-xs p-2 rounded border border-gray-700 outline-none focus:border-blue-500 font-bold"
+            />
         </div>
       </div>
 
@@ -267,11 +299,9 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index, playAlarm }: { ex
   const [note, setNote] = useState(storage.getTempInput(noteId));
   const [fillVersion, setFillVersion] = useState(0);
 
-  // Inteligentne mapowanie typów (naprawia problem z aliasami typu 'reps')
   const getEffectiveType = (type: string) => {
     const t = type?.toLowerCase();
     if (t === 'time') return 'time';
-    // Fix: Removed 'rips_only' comparison to maintain consistency and avoid potential type errors.
     if (t === 'reps' || t === 'reps_only') return 'reps_only';
     return 'standard';
   };

@@ -9,7 +9,7 @@ export default function CoachDashboard() {
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'plan' | 'history' | 'extras' | 'progress'>('plan');
+  const [activeTab, setActiveTab] = useState<'plan' | 'history' | 'extras' | 'progress' | 'calendar'>('plan');
   const [selectedProgressWorkout, setSelectedProgressWorkout] = useState<string>("");
 
   const handleLogin = async () => {
@@ -56,7 +56,6 @@ export default function CoachDashboard() {
       }
       if (!found) return null;
       
-      // Obsługa różnych formatów daty (spacja lub przecinek)
       const datePart = entry.date.split(/[ ,]/)[0];
       return {
         date: datePart.slice(0, 5),
@@ -140,6 +139,7 @@ export default function CoachDashboard() {
               <div className="flex bg-[#161616] p-1 rounded-xl border border-gray-800 overflow-x-auto">
                 <TabBtn active={activeTab === 'plan'} onClick={() => setActiveTab('plan')} label="PLAN" icon="fa-dumbbell" />
                 <TabBtn active={activeTab === 'history'} onClick={() => setActiveTab('history')} label="HISTORIA" icon="fa-history" />
+                <TabBtn active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} label="KALENDARZ" icon="fa-calendar-alt" />
                 <TabBtn active={activeTab === 'progress'} onClick={() => setActiveTab('progress')} label="PROGRES" icon="fa-chart-line" />
                 <TabBtn active={activeTab === 'extras'} onClick={() => setActiveTab('extras')} label="POMIARY" icon="fa-ruler" />
               </div>
@@ -224,6 +224,12 @@ export default function CoachDashboard() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {activeTab === 'calendar' && (
+              <div className="animate-fade-in max-w-4xl mx-auto">
+                <CoachCalendarWidget client={selectedClient} />
               </div>
             )}
 
@@ -359,6 +365,143 @@ export default function CoachDashboard() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function CoachCalendarWidget({ client }: { client: any }) {
+  const [viewDate, setViewDate] = useState(new Date());
+  
+  const months = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
+  const daysShort = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'];
+
+  const dayStatus = useMemo(() => {
+    const status: Record<string, { strength: boolean; cardio: boolean }> = {};
+    
+    const ensureDate = (d: string) => {
+      if (!status[d]) status[d] = { strength: false, cardio: false };
+    };
+
+    if (client.history) {
+      Object.entries(client.history).forEach(([id, sessions]: any) => {
+        if (!Array.isArray(sessions)) return;
+        sessions.forEach(h => {
+          const datePart = h.date.split(/[ ,(]/)[0].replace(/,/g, ''); 
+          ensureDate(datePart);
+          status[datePart].strength = true;
+        });
+      });
+    }
+
+    if (client.extras?.cardio) {
+      client.extras.cardio.forEach((c: any) => {
+        const [y, m, d] = c.date.split('-');
+        const datePart = `${d.toString().padStart(2, '0')}.${m.toString().padStart(2, '0')}.${y}`;
+        ensureDate(datePart);
+        status[datePart].cardio = true;
+      });
+    }
+
+    return status;
+  }, [client, viewDate]);
+
+  const prevMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
+  const nextMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  let firstDayIndex = new Date(year, month, 1).getDay();
+  firstDayIndex = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
+
+  const days = [];
+  for(let i=0; i<firstDayIndex; i++) days.push(null);
+  for(let i=1; i<=daysInMonth; i++) days.push(i);
+
+  const getStatus = (d: number) => {
+    const dStr = d.toString().padStart(2, '0');
+    const mStr = (month + 1).toString().padStart(2, '0');
+    const checkDate = `${dStr}.${mStr}.${year}`;
+    return dayStatus[checkDate];
+  };
+
+  const isToday = (d: number) => {
+    const t = new Date();
+    return d === t.getDate() && month === t.getMonth() && year === t.getFullYear();
+  };
+
+  return (
+    <div className="bg-[#161616] rounded-3xl border border-gray-800 p-8 shadow-2xl relative overflow-hidden">
+      <div className="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
+        <h3 className="text-white font-black italic uppercase tracking-tighter text-xl flex items-center">
+          <i className="fas fa-calendar-alt mr-3 text-blue-500"></i>
+          LOG AKTYWNOŚCI
+        </h3>
+        <div className="flex items-center space-x-4">
+           <button onClick={prevMonth} className="text-gray-500 hover:text-white transition"><i className="fas fa-chevron-left"></i></button>
+           <span className="text-white font-bold uppercase tracking-widest text-sm">{months[month]} {year}</span>
+           <button onClick={nextMonth} className="text-gray-500 hover:text-white transition"><i className="fas fa-chevron-right"></i></button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-7 gap-2 mb-4 text-center">
+        {daysShort.map(d => <div key={d} className="text-[10px] text-gray-600 font-black uppercase tracking-widest">{d}</div>)}
+      </div>
+
+      <div className="grid grid-cols-7 gap-2">
+        {days.map((day, idx) => {
+          if (day === null) return <div key={`empty-${idx}`} className="aspect-square"></div>;
+          
+          const status = getStatus(day);
+          const today = isToday(day);
+          const hasStrength = status?.strength;
+          const hasCardio = status?.cardio;
+
+          return (
+            <div 
+              key={day} 
+              className={`aspect-square rounded-2xl flex items-center justify-center relative border transition overflow-hidden ${today ? 'border-blue-500 bg-blue-500/10' : 'border-gray-800 bg-black/40'} ${hasStrength || hasCardio ? 'border-opacity-100' : 'border-opacity-30'}`}
+            >
+              <span className={`text-xs font-black z-10 relative ${today ? 'text-blue-400' : (hasStrength || hasCardio) ? 'text-white' : 'text-gray-700'}`}>{day}</span>
+              
+              {hasCardio && !hasStrength && (
+                <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-red-900/20">
+                    <i className="fas fa-heartbeat text-red-600 text-2xl animate-pulse opacity-40"></i>
+                </div>
+              )}
+
+              {hasStrength && (
+                <div className="absolute inset-0 w-full h-full opacity-30">
+                   <img 
+                    src='https://lh3.googleusercontent.com/u/0/d/1GZ-QR4EyK6Ho9czlpTocORhwiHW4FGnP' 
+                    className="w-full h-full object-cover grayscale"
+                    alt=""
+                   />
+                </div>
+              )}
+              
+              {hasStrength && hasCardio && (
+                <div className="absolute top-0 left-0 w-full bg-red-600 py-0.5 flex justify-center items-center">
+                   <span className="text-[6px] font-black text-white uppercase tracking-tighter">CARDIO</span>
+                </div>
+              )}
+
+              {hasStrength && (
+                <div className="absolute bottom-1 right-1">
+                   <i className="fas fa-check-circle text-[10px] text-green-500"></i>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-8 flex justify-center space-x-6 text-[10px] font-black uppercase tracking-widest text-gray-500 border-t border-gray-800 pt-6">
+          <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-blue-500 mr-2"></div> Dzisiaj</div>
+          <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div> Trening</div>
+          <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-red-600 mr-2"></div> Cardio</div>
+      </div>
     </div>
   );
 }

@@ -108,7 +108,10 @@ const ClientRouteGuard: React.FC<{
 export default function App() {
   const [clientCode, setClientCode] = useState<string | null>(localStorage.getItem('bear_gym_client_code'));
   const [clientName, setClientName] = useState<string>(localStorage.getItem('bear_gym_client_name') || '');
-  const [workouts, setWorkouts] = useState<WorkoutsMap>({});
+  const [workouts, setWorkouts] = useState<WorkoutsMap>(() => {
+    const local = localStorage.getItem(`${CLIENT_CONFIG.storageKey}_workouts`);
+    return local ? JSON.parse(local) : {};
+  });
   const [settings, setSettings] = useState<AppSettings>(localStorageCache.get('app_settings') || { volume: 0.5, soundType: 'beep2' });
   const [logo, setLogo] = useState<string>(localStorage.getItem('app_logo') || 'https://lh3.googleusercontent.com/u/0/d/1GZ-QR4EyK6Ho9czlpTocORhwiHW4FGnP');
   const [audioCtx, setAudioCtx] = useState<AudioContext | null>(null);
@@ -116,18 +119,20 @@ export default function App() {
   const [syncError, setSyncError] = useState<string | null>(null);
 
   const initData = useCallback(async (code: string) => {
-    // Jeśli właśnie trwa synchronizacja (np. po imporcie), nie nadpisujemy danych z chmury
-    if (localStorage.getItem('is_syncing') === 'true') {
-        setIsReady(true);
-        localStorage.removeItem('is_syncing');
-        return;
-    }
-
     setSyncError(null);
     try {
+      // Zawsze ładujemy najpierw co mamy lokalnie, żeby aplikacja nie była pusta
+      const localWorkouts = localStorage.getItem(`${CLIENT_CONFIG.storageKey}_workouts`);
+      if (localWorkouts) {
+        setWorkouts(JSON.parse(localWorkouts));
+      }
+
       const result = await remoteStorage.fetchUserData(code);
       if (result.success) {
-        setWorkouts(result.plan || {});
+        if (result.plan) {
+          setWorkouts(result.plan);
+          storage.saveWorkouts(result.plan);
+        }
         if (result.name) {
           setClientName(result.name);
           localStorage.setItem('bear_gym_client_name', result.name);
@@ -143,7 +148,10 @@ export default function App() {
         }
         setIsReady(true);
       } else {
-        if (result.error?.includes("Nie znaleziono") || result.error?.includes("Nieprawidłowy")) {
+        // Jeśli nie ma neta, ale mamy lokalne dane - pozwalamy wejść
+        if (localWorkouts) {
+          setIsReady(true);
+        } else if (result.error?.includes("Nie znaleziono") || result.error?.includes("Nieprawidłowy")) {
             setClientCode(null);
             localStorage.removeItem('bear_gym_client_code');
         } else {
@@ -151,12 +159,17 @@ export default function App() {
         }
       }
     } catch (e) {
-      setSyncError("Błąd ładowania danych.");
+      if (workouts && Object.keys(workouts).length > 0) {
+        setIsReady(true);
+      } else {
+        setSyncError("Błąd ładowania danych.");
+      }
     }
-  }, []);
+  }, [workouts]);
 
   useEffect(() => {
     if (clientCode) initData(clientCode);
+    else setIsReady(true);
   }, [clientCode, initData]);
 
   const handleLogin = (code: string, userData: any) => {
@@ -167,6 +180,7 @@ export default function App() {
       localStorage.setItem('bear_gym_client_name', userData.name);
     }
     setWorkouts(userData.plan || {});
+    storage.saveWorkouts(userData.plan || {});
     setIsReady(true);
   };
 
@@ -174,7 +188,6 @@ export default function App() {
     if (clientCode) {
       let payload = data;
       if (type === 'history') {
-        // Zbieramy całą historię bezpośrednio z localStorage, aby mieć pewność, że wysyłamy aktualny stan (np. po usunięciu)
         const allHistory: Record<string, any[]> = {};
         const prefix = `${CLIENT_CONFIG.storageKey}_history_`;
         for (let i = 0; i < localStorage.length; i++) {
@@ -197,6 +210,7 @@ export default function App() {
 
   const updateWorkouts = (newWorkouts: WorkoutsMap) => {
     setWorkouts(newWorkouts);
+    storage.saveWorkouts(newWorkouts);
     syncData('plan', newWorkouts);
   };
 

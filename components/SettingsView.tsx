@@ -83,7 +83,7 @@ export default function SettingsView() {
     const data: any = {};
     for(let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if(key && (key.startsWith(CLIENT_CONFIG.storageKey) || key === 'app_settings' || key === 'bear_gym_client_code' || key === 'bear_gym_client_name')) {
+        if(key && (key.startsWith(CLIENT_CONFIG.storageKey) || key === 'app_settings' || key === 'bear_gym_client_code' || key === 'bear_gym_client_name' || key === 'app_logo')) {
             data[key] = localStorage.getItem(key);
         }
     }
@@ -114,19 +114,23 @@ export default function SettingsView() {
             const codeToSync = data['bear_gym_client_code'] || clientCode;
             
             if (codeToSync) {
-              // Blokujemy initData przed pobieraniem starych danych z chmury podczas przeładowania
+              // Blokada dla initData, by nie nadpisać tego co właśnie zaimportowaliśmy
               localStorage.setItem('is_syncing', 'true');
 
-              // 3. Budujemy mapę historii bezpośrednio z zaimportowanych danych
+              // 3. Budujemy mapy do synchronizacji z chmurą
               const historyToSync: Record<string, any[]> = {};
               const historyPrefix = `${CLIENT_CONFIG.storageKey}_history_`;
-              
+              let planToSync: any = null;
+
               Object.keys(data).forEach(key => {
+                // Historia
                 if (key.startsWith(historyPrefix)) {
                   const wId = key.replace(historyPrefix, '');
-                  try {
-                    historyToSync[wId] = JSON.parse(data[key]);
-                  } catch(e) { /* ignore */ }
+                  try { historyToSync[wId] = JSON.parse(data[key]); } catch(e) {}
+                }
+                // Plan treningowy
+                if (key === `${CLIENT_CONFIG.storageKey}_workouts`) {
+                  try { planToSync = JSON.parse(data[key]); } catch(e) {}
                 }
               });
 
@@ -134,22 +138,26 @@ export default function SettingsView() {
               const cardioToSync = JSON.parse(data[`${CLIENT_CONFIG.storageKey}_cardio`] || '[]');
               const measurementsToSync = JSON.parse(data[`${CLIENT_CONFIG.storageKey}_measurements`] || '[]');
 
-              // 5. Wysyłamy do chmury
+              // 5. Wysyłamy WSZYSTKO do chmury po kolei
+              if (planToSync) {
+                await remoteStorage.saveToCloud(codeToSync, 'plan', planToSync);
+              }
               await remoteStorage.saveToCloud(codeToSync, 'history', historyToSync);
               await remoteStorage.saveToCloud(codeToSync, 'extras', {
                 measurements: measurementsToSync,
                 cardio: cardioToSync
               });
 
-              alert("Import zakończony! Dane zostały wysłane do Google Sheets.");
+              alert("Import zakończony sukcesem! Dane zostały wysłane do Google Sheets.");
             } else {
-              alert("Import zakończony lokalnie. Brak kodu do synchronizacji z chmurą.");
+              alert("Import zakończony lokalnie. Zaloguj się, aby zsynchronizować z chmurą.");
             }
 
+            // Przeładowanie, aby App.tsx wczytał nowy stan z localStorage
             window.location.reload();
         } catch(err) { 
             console.error(err);
-            alert("Błąd importu pliku."); 
+            alert("Błąd importu pliku: Nieprawidłowy format JSON."); 
             setIsImporting(false);
             localStorage.removeItem('is_syncing');
         }

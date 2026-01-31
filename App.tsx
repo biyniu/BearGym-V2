@@ -26,7 +26,6 @@ interface AppContextType {
   updateLogo: (s: string) => void;
   playAlarm: () => void;
   syncData: (type: 'history' | 'extras' | 'plan', data: any) => void;
-  // Globalne stopery
   workoutStartTime: number | null;
   setWorkoutStartTime: (t: number | null) => void;
   restTimer: { timeLeft: number | null, duration: number };
@@ -121,9 +120,13 @@ const ClientRouteGuard: React.FC<{
   handleLogin: (code: string, userData: any) => void 
 }> = ({ children, clientCode, syncError, isReady, handleLogin }) => {
   const location = useLocation();
-  const isCoachRoute = location.pathname === '/admin';
+  const path = location.pathname.toLowerCase();
+  
+  // Guard allows access to admin paths directly
+  const isAdminRoute = path === '/admin' || path === '/coach-admin';
 
-  if (isCoachRoute) return <>{children}</>;
+  if (isAdminRoute) return <>{children}</>;
+  
   if (!clientCode) return <AuthView onLogin={handleLogin} />;
   if (syncError) return <div className="p-10 text-center text-red-500">{syncError}</div>;
   if (!isReady) return (
@@ -148,7 +151,6 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  // Stopery
   const [workoutStartTime, setWorkoutStartTimeState] = useState<number | null>(() => {
     const saved = sessionStorage.getItem('workout_start_time');
     return saved ? parseInt(saved) : null;
@@ -201,6 +203,12 @@ export default function App() {
   };
 
   const initData = useCallback(async (code: string) => {
+    const currentHash = window.location.hash.toLowerCase();
+    if (currentHash.includes('admin')) {
+      setIsReady(true);
+      return;
+    }
+    
     if (localStorage.getItem('is_syncing')) return;
     setSyncError(null);
     try {
@@ -314,6 +322,7 @@ export default function App() {
             <Route path="/cardio" element={<CardioView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="/admin" element={<CoachDashboard />} />
+            <Route path="/coach-admin" element={<CoachDashboard />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ClientRouteGuard>

@@ -146,9 +146,13 @@ export default function CoachDashboard() {
       const rir = cols[7]?.trim() || "-";
       const rest = parseInt(cols[8]) || 90;
       const link = cols[9]?.trim() || "";
-      const type = (cols[10]?.trim() as ExerciseType) || "standard";
+      
+      // KOLUMNA TYPE: Obsługa nowej kolumny (indeks 10)
+      const rawType = cols[10]?.trim().toLowerCase() || "standard";
+      let type: ExerciseType = "standard";
+      if (rawType.includes('time')) type = "time";
+      else if (rawType.includes('reps')) type = "reps_only";
 
-      // Unique ID for the workout based on title
       const workoutId = planName.toLowerCase().replace(/\s+/g, '_');
       
       if (!result[workoutId]) {
@@ -617,11 +621,11 @@ export default function CoachDashboard() {
                   
                   <div className="space-y-4">
                     <div>
-                      <label className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mb-2 block">Wklej dane z Excela (Kolumny: Plan, Sekcja, Nazwa, Opis...):</label>
+                      <label className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mb-2 block">Wklej dane z Excela (Kolumny: Plan, Sekcja, Nazwa, Opis, Serie, Powt, Tempo, RIR, Przerwa, Link, Type):</label>
                       <textarea 
                         className="w-full bg-black border border-gray-800 text-gray-300 p-4 rounded-2xl font-mono text-[10px] focus:border-blue-500 outline-none transition"
                         rows={10}
-                        placeholder="PUSH 1	Rozgrzewka	Bieżnia	Opis...	1	10 min..."
+                        placeholder="PUSH 1	Rozgrzewka	Bieżnia	Opis...	1	10 min...	-	-	120	link	standard"
                         value={excelInput}
                         onChange={(e) => setExcelInput(e.target.value)}
                       />
@@ -640,7 +644,7 @@ export default function CoachDashboard() {
 
                   <div className="mt-6 p-4 bg-blue-900/10 border border-blue-500/20 rounded-2xl">
                      <p className="text-[10px] text-blue-300/60 leading-relaxed italic">
-                        Instrukcja: Skopiuj wiersze z Excela. Konwerter automatycznie rozpozna nazwy planów (kolumna 1) i sekcje (kolumna 2: Rozgrzewka/Trening). Nagłówek zostanie pominięty automatycznie.
+                        Instrukcja: Skopiuj wiersze z Excela. Konwerter automatycznie rozpozna nazwy planów (kolumna 1) i sekcje (kolumna 2). Kolumna 11 (Type) określa sposób logowania: standard, time lub reps.
                      </p>
                   </div>
                 </div>
@@ -732,6 +736,9 @@ function CoachCalendarWidget({ client }: { client: any }) {
     return d === t.getDate() && month === t.getMonth() && year === t.getFullYear();
   };
 
+  // Używamy logo klienta lub domyślnego
+  const clientLogo = 'https://lh3.googleusercontent.com/u/0/d/1GZ-QR4EyK6Ho9czlpTocORhwiHW4FGnP';
+
   return (
     <div className="bg-[#161616] rounded-3xl border border-gray-800 p-5 shadow-2xl relative overflow-hidden">
       <div className="flex justify-between items-center mb-4 border-b border-gray-800 pb-3">
@@ -764,7 +771,12 @@ function CoachCalendarWidget({ client }: { client: any }) {
               key={day} 
               className={`aspect-square rounded-lg flex items-center justify-center relative border transition overflow-hidden ${today ? 'border-blue-500 bg-blue-500/10' : 'border-gray-800 bg-black/40'} ${hasStrength || hasCardio ? 'border-opacity-100' : 'border-opacity-30'}`}
             >
-              <span className={`text-[10px] font-black z-10 relative ${today ? 'text-blue-400' : (hasStrength || hasCardio) ? 'text-white' : 'text-gray-700'}`}>{day}</span>
+              {/* Zawsze wyświetlamy numer dnia w rogu, jeśli jest jakakolwiek aktywność */}
+              {(hasStrength || hasCardio) ? (
+                 <div className="absolute top-0.5 left-1 text-[8px] text-gray-400 font-mono z-20">{day}</div>
+              ) : (
+                 <span className={`text-[10px] font-black z-10 relative ${today ? 'text-blue-400' : 'text-gray-700'}`}>{day}</span>
+              )}
               
               {hasCardio && !hasStrength && (
                 <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-red-900/20">
@@ -773,23 +785,23 @@ function CoachCalendarWidget({ client }: { client: any }) {
               )}
 
               {hasStrength && (
-                <div className="absolute inset-0 w-full h-full opacity-30">
+                <div className="absolute inset-0 w-full h-full">
                    <img 
-                    src='https://lh3.googleusercontent.com/u/0/d/1GZ-QR4EyK6Ho9czlpTocORhwiHW4FGnP' 
-                    className="w-full h-full object-cover grayscale"
+                    src={clientLogo} 
+                    className="w-full h-full object-cover grayscale opacity-40"
                     alt=""
                    />
                 </div>
               )}
               
               {hasStrength && hasCardio && (
-                <div className="absolute top-0 left-0 w-full bg-red-600 py-0.5 flex justify-center items-center">
+                <div className="absolute top-0 left-0 w-full bg-red-600 py-0.5 flex justify-center items-center z-20">
                    <span className="text-[5px] font-black text-white uppercase tracking-tighter">CARDIO</span>
                 </div>
               )}
 
               {hasStrength && (
-                <div className="absolute bottom-0.5 right-0.5">
+                <div className="absolute bottom-0.5 right-0.5 z-20">
                    <i className="fas fa-check-circle text-[8px] text-green-500"></i>
                 </div>
               )}

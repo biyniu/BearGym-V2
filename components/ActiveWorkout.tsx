@@ -1,5 +1,5 @@
 
-import React, { useContext, useEffect, useState, useRef } from 'react';
+import React, { useContext, useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppContext } from '../App';
 import { storage } from '../services/storage';
@@ -11,105 +11,6 @@ const formatTime = (seconds: number) => {
   const s = seconds % 60;
   if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-};
-
-const RestTimerButton = ({ duration, playAlarm }: { duration: number, playAlarm: () => void }) => {
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const intervalRef = useRef<number | null>(null);
-
-  const startTimer = () => {
-    if (timeLeft !== null) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      setTimeLeft(null);
-      return;
-    }
-    setTimeLeft(duration);
-    intervalRef.current = window.setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev === null || prev <= 1) {
-          if (intervalRef.current) clearInterval(intervalRef.current);
-          playAlarm();
-          return null;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  useEffect(() => {
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, []);
-
-  const isActive = timeLeft !== null;
-
-  return (
-    <button 
-      onClick={startTimer}
-      className={`rounded border border-gray-600 font-bold flex flex-col justify-center items-center transition active:scale-90 w-full h-full p-1
-        ${isActive ? 'bg-red-600 text-white border-red-500 animate-pulse' : 'bg-gray-800 text-white hover:bg-gray-700'}
-      `}
-    >
-      <span className="font-mono text-xs">{isActive ? `${timeLeft}` : `${duration}s`}</span>
-      {!isActive && <i className="fas fa-clock text-[8px] mt-1"></i>}
-    </button>
-  );
-};
-
-const Stopwatch = ({ id, onChange, initialValue }: { id: string, onChange: (val: string) => void, initialValue: string }) => {
-  const [time, setTime] = useState<number>(parseInt(initialValue) || 0);
-  const [isRunning, setIsRunning] = useState(false);
-  const intervalRef = useRef<number | null>(null);
-  const onChangeRef = useRef(onChange);
-
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
-
-  useEffect(() => {
-    if (isRunning) {
-      intervalRef.current = window.setInterval(() => {
-        setTime(t => {
-          const newVal = t + 1;
-          onChangeRef.current(newVal.toString());
-          return newVal;
-        });
-      }, 1000);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [isRunning]);
-
-  const toggle = () => {
-    if (isRunning) {
-      setIsRunning(false);
-      storage.saveTempInput(id, time.toString());
-    } else {
-      setIsRunning(true);
-    }
-  };
-
-  return (
-    <div className="flex space-x-2 w-full">
-      <input 
-        type="number" 
-        value={time === 0 ? '' : time}
-        onChange={(e) => {
-          const val = parseInt(e.target.value) || 0;
-          setTime(val);
-          onChange(val.toString());
-        }}
-        placeholder="sek" 
-        className="bg-[#2d2d2d] border border-[#404040] text-white text-center w-full p-3 rounded text-lg font-bold focus:outline-none focus:border-red-500" 
-      />
-      <button 
-        onClick={toggle}
-        className={`w-12 flex-shrink-0 rounded flex items-center justify-center text-white transition-colors ${isRunning ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600 text-red-500'}`}
-      >
-        <i className={`fas ${isRunning ? 'fa-stop' : 'fa-stopwatch'} fa-lg`}></i>
-      </button>
-    </div>
-  );
 };
 
 const SuccessModal = ({ onClose }: { onClose: () => void }) => {
@@ -135,12 +36,11 @@ const SuccessModal = ({ onClose }: { onClose: () => void }) => {
 export default function ActiveWorkout() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { workouts, playAlarm, syncData } = useContext(AppContext);
+  const { workouts, syncData, workoutStartTime, setWorkoutStartTime, stopRestTimer } = useContext(AppContext);
   const workoutData = id ? workouts[id] : null;
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   
-  // Stan dla niestandardowej daty treningu
   const [customDate, setCustomDate] = useState(() => {
     const now = new Date();
     const offset = now.getTimezoneOffset() * 60000;
@@ -148,23 +48,27 @@ export default function ActiveWorkout() {
   });
 
   useEffect(() => {
-    const startTime = Date.now();
-    const timerInterval = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
-    }, 1000);
-    return () => clearInterval(timerInterval);
-  }, []);
+    if (!workoutStartTime) {
+      setWorkoutStartTime(Date.now());
+    }
+    
+    const updateTime = () => {
+      const start = sessionStorage.getItem('workout_start_time');
+      if (start) {
+        setElapsedTime(Math.floor((Date.now() - parseInt(start)) / 1000));
+      }
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, [workoutStartTime, setWorkoutStartTime]);
 
   if (!workoutData || !id) return <div className="text-center p-10 text-red-500">Nie znaleziono treningu.</div>;
 
   const handleFinish = async () => {
-    // Formatowanie daty z selektora lub obecnej
     const d = new Date(customDate);
-    const day = d.getDate().toString().padStart(2, '0');
-    const month = (d.getMonth() + 1).toString().padStart(2, '0');
-    const year = d.getFullYear();
-    const timeInDate = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const dateStr = `${day}.${month}.${year}, ${timeInDate}`;
+    const dateStr = `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
     let sessionResults: { [key: string]: string } = {};
     let hasData = false;
@@ -195,7 +99,6 @@ export default function ActiveWorkout() {
         if(note) resStr += ` [Note: ${note}]`;
         sessionResults[ex.id] = resStr;
         hasData = true;
-        localStorage.setItem(`history_${id}_${ex.id}`, resStr);
       }
     });
 
@@ -207,46 +110,51 @@ export default function ActiveWorkout() {
     
     const newEntry = {
       date: finalDateStr,
-      timestamp: d.getTime(), // Używamy timestampu z wybranej daty
+      timestamp: d.getTime(),
       results: sessionResults
     };
 
     history.unshift(newEntry);
-    // Sortujemy po timestampie, na wypadek gdyby dodano trening "wstecz"
     history.sort((a: any, b: any) => b.timestamp - a.timestamp);
     
     storage.saveHistory(id, history);
-    
     await syncData('history', history);
     storage.clearTempInputs(id, workoutData.exercises);
+    setWorkoutStartTime(null);
+    stopRestTimer();
     setShowSuccessModal(true);
   };
 
+  const handleDiscard = () => {
+    if (window.confirm("Czy na pewno chcesz odrzucić ten trening? Dane nie zostaną zapisane.")) {
+        stopRestTimer();
+        setWorkoutStartTime(null);
+        sessionStorage.removeItem('workout_start_time');
+        storage.clearTempInputs(id, workoutData.exercises);
+        // Przekierowanie na główną bez śladu w historii sesji
+        navigate('/', { replace: true });
+    }
+  };
+
   return (
-    <div className="animate-fade-in pb-10 relative">
+    <div className="animate-fade-in pb-10 relative z-10">
       {showSuccessModal && <SuccessModal onClose={() => navigate('/')} />}
 
       <div className="flex flex-col mb-6 space-y-4">
-        <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold text-white truncate max-w-[60%]">{workoutData.title}</h2>
-            <div className="bg-gray-800 px-3 py-1 rounded border border-gray-600 flex items-center space-x-2">
-                <i className="fas fa-stopwatch text-red-500"></i>
+        <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-xl border border-gray-800">
+            <div className="flex items-center space-x-2">
+                <i className="fas fa-stopwatch text-red-500 animate-pulse"></i>
                 <span className="font-mono text-lg font-bold text-white">{formatTime(elapsedTime)}</span>
             </div>
-        </div>
-        
-        {/* Selektor daty treningu */}
-        <div className="bg-[#1e1e1e] p-3 rounded-xl border border-gray-800 flex items-center justify-between">
-            <div className="flex items-center text-gray-400 text-xs font-bold">
+            <div className="flex items-center text-gray-400 text-[10px] font-bold">
                 <i className="fas fa-calendar-alt mr-2 text-blue-500"></i>
-                DATA TRENINGU:
+                <input 
+                    type="datetime-local" 
+                    value={customDate}
+                    onChange={(e) => setCustomDate(e.target.value)}
+                    className="bg-transparent text-white border-none outline-none font-bold"
+                />
             </div>
-            <input 
-                type="datetime-local" 
-                value={customDate}
-                onChange={(e) => setCustomDate(e.target.value)}
-                className="bg-gray-900 text-white text-xs p-2 rounded border border-gray-700 outline-none focus:border-blue-500 font-bold"
-            />
         </div>
       </div>
 
@@ -276,55 +184,93 @@ export default function ActiveWorkout() {
             exercise={ex} 
             workoutId={id} 
             index={idx+1} 
-            playAlarm={playAlarm} 
           />
         ))}
       </div>
 
-      <div className="mt-12 mb-8 px-4">
+      <div className="mt-12 mb-8 px-4 flex flex-col space-y-6 relative z-20">
         <button 
           onClick={handleFinish} 
-          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center"
+          className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-5 rounded-2xl shadow-[0_10px_30px_rgba(22,163,74,0.3)] transition transform active:scale-95 flex items-center justify-center text-xl uppercase italic tracking-tighter"
         >
-          <i className="fas fa-check-circle mr-2"></i> ZAKOŃCZ I ZAPISZ TRENING
+          <i className="fas fa-check-circle mr-3"></i> Zakończ i zapisz trening
         </button>
+        
+        <div className="flex justify-end pr-2">
+            <button 
+                onClick={(e) => { e.stopPropagation(); handleDiscard(); }} 
+                className="bg-red-900/20 hover:bg-red-600 text-red-500 hover:text-white px-5 py-2.5 rounded-xl text-[11px] font-black uppercase italic transition-all flex items-center border border-red-900/50 shadow-lg"
+            >
+                <i className="fas fa-trash-alt mr-2"></i> Nie zapisuj treningu
+            </button>
+        </div>
       </div>
     </div>
   );
 }
 
-const ExerciseCard = React.memo(({ exercise, workoutId, index, playAlarm }: { exercise: Exercise, workoutId: string, index: number, playAlarm: () => void }) => {
-  const lastResult = storage.getLastResult(workoutId, exercise.id);
-  const noteId = `note_${workoutId}_${exercise.id}`;
-  const [note, setNote] = useState(storage.getTempInput(noteId));
-  const [fillVersion, setFillVersion] = useState(0);
+const ExerciseCard = React.memo(({ exercise, workoutId, index }: { exercise: Exercise, workoutId: string, index: number }) => {
+  const { settings, startRestTimer } = useContext(AppContext);
+  
+  const history = useMemo(() => storage.getHistory(workoutId), [workoutId]);
+  const lastResult = useMemo(() => {
+    if (!history || history.length === 0) return '';
+    return history[0].results[exercise.id] || '';
+  }, [history, exercise.id]);
 
-  const getEffectiveType = (type: string) => {
-    const t = type?.toLowerCase();
-    if (t === 'time') return 'time';
-    if (t === 'reps' || t === 'reps_only') return 'reps_only';
-    return 'standard';
-  };
+  const [note, setNote] = useState(storage.getTempInput(`note_${workoutId}_${exercise.id}`));
+  const [completedSets, setCompletedSets] = useState<Record<number, boolean>>(() => {
+    const saved = localStorage.getItem(`completed_${workoutId}_${exercise.id}`);
+    return saved ? JSON.parse(saved) : {};
+  });
 
-  const effectiveType = getEffectiveType(exercise.type);
+  const [inputValues, setInputValues] = useState<Record<string, string>>({});
 
-  const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setNote(e.target.value);
-    storage.saveTempInput(noteId, e.target.value);
-  };
-
-  const handleFillWeights = () => {
-    if (!lastResult) return;
-    const matches = Array.from(lastResult.matchAll(/(\d+(?:[.,]\d+)?)\s*kg/gi));
-    if (matches.length === 0) return;
+  useEffect(() => {
+    const newValues: Record<string, string> = {};
+    const kgMatches = Array.from(lastResult.matchAll(/(\d+(?:[.,]\d+)?)\s*kg/gi));
+    const repsMatches = Array.from(lastResult.matchAll(/(?:x\s*|(\d+)\s*p)(\d+)?/gi)).map(m => m[2] || m[1]);
+    
     for(let i=1; i<=exercise.sets; i++) {
-        const matchIndex = Math.min(i-1, matches.length - 1);
-        const weight = matches[matchIndex][1];
-        const uid = `input_${workoutId}_${exercise.id}_s${i}`;
-        storage.saveTempInput(`${uid}_kg`, weight);
+      const uidKg = `input_${workoutId}_${exercise.id}_s${i}_kg`;
+      const uidReps = `input_${workoutId}_${exercise.id}_s${i}_reps`;
+      
+      const savedKg = storage.getTempInput(uidKg);
+      const savedReps = storage.getTempInput(uidReps);
+
+      if (!savedKg && kgMatches[i-1]) {
+        storage.saveTempInput(uidKg, kgMatches[i-1][1]);
+        newValues[uidKg] = kgMatches[i-1][1];
+      } else {
+        newValues[uidKg] = savedKg;
+      }
+
+      if (!savedReps && repsMatches[i-1]) {
+        storage.saveTempInput(uidReps, repsMatches[i-1]);
+        newValues[uidReps] = repsMatches[i-1];
+      } else {
+        newValues[uidReps] = savedReps;
+      }
     }
-    setFillVersion(v => v + 1);
+    setInputValues(prev => ({ ...prev, ...newValues }));
+  }, [lastResult, workoutId, exercise.id, exercise.sets]);
+
+  const handleInputChange = (uid: string, value: string) => {
+    storage.saveTempInput(uid, value);
+    setInputValues(prev => ({ ...prev, [uid]: value }));
   };
+
+  const toggleSet = (sNum: number) => {
+    const newState = { ...completedSets, [sNum]: !completedSets[sNum] };
+    setCompletedSets(newState);
+    localStorage.setItem(`completed_${workoutId}_${exercise.id}`, JSON.stringify(newState));
+    
+    if (newState[sNum] && settings.autoRestTimer) {
+      startRestTimer(exercise.rest);
+    }
+  };
+
+  const effectiveType = (exercise.type || 'standard').toLowerCase();
 
   return (
     <div className="bg-[#1e1e1e] rounded-xl shadow-md p-4">
@@ -342,61 +288,68 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index, playAlarm }: { ex
       </div>
 
       <div className="grid grid-cols-4 gap-1 text-[10px] text-center mb-4 bg-black bg-opacity-20 p-2 rounded">
-        <div><div className="text-gray-500">TEMPO</div><div className="text-blue-400 font-mono">{exercise.tempo}</div></div>
-        <div><div className="text-gray-500">RIR</div><div className="text-blue-400 font-mono">{exercise.rir}</div></div>
-        <div><div className="text-gray-500">ZAKRES</div><div className="text-green-400 font-mono">{exercise.reps}</div></div>
-        <div className="h-full">
-           <RestTimerButton duration={exercise.rest} playAlarm={playAlarm} />
-        </div>
+        <div><div className="text-gray-500 uppercase">Tempo</div><div className="text-blue-400 font-mono">{exercise.tempo}</div></div>
+        <div><div className="text-gray-500 uppercase">Rir</div><div className="text-blue-400 font-mono">{exercise.rir}</div></div>
+        <div><div className="text-gray-500 uppercase">Zakres</div><div className="text-green-400 font-mono">{exercise.reps}</div></div>
+        <div><div className="text-gray-500 uppercase">Przerwa</div><div className="text-white font-mono">{exercise.rest}s</div></div>
       </div>
 
-      <div className="bg-gray-900 bg-opacity-50 p-2 rounded text-[10px] mb-3 border border-gray-800 flex justify-between items-center">
-        <div className="truncate">
-            <span className="text-red-400 font-bold">OSTATNIO:</span> <span className="text-gray-400">{lastResult || 'Brak danych'}</span>
-        </div>
-        {lastResult && effectiveType === 'standard' && (
-            <button 
-                onClick={handleFillWeights}
-                className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded border border-gray-600 flex items-center ml-2"
-            >
-                <i className="fas fa-copy mr-1"></i> Ciężar
-            </button>
-        )}
+      <div className="bg-gray-900 bg-opacity-50 p-2 rounded text-[10px] mb-3 border border-gray-800">
+        <span className="text-red-400 font-bold">OSTATNIO:</span> <span className="text-gray-400">{lastResult || 'Brak danych'}</span>
       </div>
 
       <div className="space-y-1">
         {Array.from({ length: exercise.sets }).map((_, sIdx) => {
           const setNum = sIdx + 1;
           const uId = `input_${workoutId}_${exercise.id}_s${setNum}`;
+          const isDone = completedSets[setNum];
           return (
-            <div key={setNum} className="flex items-center py-2 space-x-2 border-b border-gray-800 last:border-0">
+            <div key={setNum} className={`flex items-center py-2 space-x-2 border-b border-gray-800 last:border-0 transition-opacity ${isDone ? 'opacity-40' : 'opacity-100'}`}>
               <span className="text-gray-500 text-xs w-6 font-bold pt-1">S{setNum}</span>
-              <div className={`flex-grow grid ${effectiveType === 'standard' ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
-                {effectiveType === 'standard' && (
+              <div className={`flex-grow grid ${(effectiveType === 'standard' || effectiveType === 'reps') ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+                {(effectiveType === 'standard' || effectiveType === 'reps') && (
                   <>
-                     <SavedInput key={`${uId}_kg_${fillVersion}`} id={`${uId}_kg`} placeholder="kg" />
-                     <SavedInput key={`${uId}_reps_${fillVersion}`} id={`${uId}_reps`} placeholder="powt" />
+                     <SavedInput 
+                        value={inputValues[`${uId}_kg`] || ''} 
+                        onChange={(v) => handleInputChange(`${uId}_kg`, v)} 
+                        placeholder="kg" 
+                      />
+                     <SavedInput 
+                        value={inputValues[`${uId}_reps`] || ''} 
+                        onChange={(v) => handleInputChange(`${uId}_reps`, v)} 
+                        placeholder="powt" 
+                      />
                   </>
                 )}
                 {effectiveType === 'reps_only' && (
-                   <SavedInput key={`${uId}_reps_${fillVersion}`} id={`${uId}_reps`} placeholder="powtórzenia" />
+                  <SavedInput 
+                    value={inputValues[`${uId}_reps`] || ''} 
+                    onChange={(v) => handleInputChange(`${uId}_reps`, v)} 
+                    placeholder="powtórzenia" 
+                  />
                 )}
                 {effectiveType === 'time' && (
                   <Stopwatch 
                     id={`${uId}_time`} 
                     initialValue={storage.getTempInput(`${uId}_time`)} 
-                    onChange={(val) => storage.saveTempInput(`${uId}_time`, val)} 
+                    onChange={(val) => handleInputChange(`${uId}_time`, val)} 
                   />
                 )}
               </div>
+              <button 
+                onClick={() => toggleSet(setNum)}
+                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all border ${isDone ? 'bg-green-600 border-green-500 text-white shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'bg-gray-800 border-gray-700 text-gray-600'}`}
+              >
+                <i className={`fas fa-check ${isDone ? 'scale-110' : 'scale-100'}`}></i>
+              </button>
             </div>
           );
         })}
       </div>
       <textarea 
         value={note}
-        onChange={handleNoteChange}
-        className="w-full mt-3 bg-[#2d2d2d] text-gray-300 text-xs p-2 rounded border border-gray-700 focus:border-red-500 focus:outline-none" 
+        onChange={(e) => { setNote(e.target.value); storage.saveTempInput(`note_${workoutId}_${exercise.id}`, e.target.value); }}
+        className="w-full mt-3 bg-[#2d2d2d] text-gray-300 text-xs p-2 rounded border border-gray-700 focus:border-red-500 outline-none" 
         placeholder="Notatki do ćwiczenia..." 
         rows={1} 
       />
@@ -404,19 +357,52 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index, playAlarm }: { ex
   );
 });
 
-const SavedInput: React.FC<{ id: string, placeholder: string }> = ({ id, placeholder }) => {
-  const [val, setVal] = useState(storage.getTempInput(id));
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setVal(e.target.value);
-    storage.saveTempInput(id, e.target.value);
-  };
+const SavedInput: React.FC<{ value: string, onChange: (v: string) => void, placeholder: string }> = ({ value, onChange, placeholder }) => {
   return (
     <input 
-      type="number" 
-      value={val} 
-      onChange={handleChange}
+      type="text" 
+      inputMode="decimal"
+      value={value} 
+      onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder} 
-      className="bg-[#2d2d2d] border border-[#404040] text-white text-center w-full p-3 rounded text-lg font-bold focus:outline-none focus:border-red-500" 
+      className="bg-[#2d2d2d] border border-[#404040] text-white text-center w-full p-3 rounded text-lg font-bold focus:outline-none focus:border-red-500 transition-colors" 
     />
+  );
+};
+
+const Stopwatch = ({ id, onChange, initialValue }: { id: string, onChange: (val: string) => void, initialValue: string }) => {
+  const [time, setTime] = useState<number>(parseInt(initialValue) || 0);
+  const [isRunning, setIsRunning] = useState(false);
+  const intervalRef = useRef<number | null>(null);
+
+  const toggle = () => {
+    if (isRunning) {
+      setIsRunning(false);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    } else {
+      setIsRunning(true);
+      intervalRef.current = window.setInterval(() => {
+        setTime(t => {
+          const nv = t + 1;
+          onChange(nv.toString());
+          return nv;
+        });
+      }, 1000);
+    }
+  };
+
+  return (
+    <div className="flex space-x-2 w-full">
+      <input 
+        type="number" 
+        value={time === 0 ? '' : time}
+        onChange={(e) => { setTime(parseInt(e.target.value) || 0); onChange(e.target.value); }}
+        placeholder="sek" 
+        className="bg-[#2d2d2d] border border-[#404040] text-white text-center w-full p-3 rounded text-lg font-bold outline-none" 
+      />
+      <button onClick={toggle} className={`w-12 rounded flex items-center justify-center text-white transition-colors ${isRunning ? 'bg-red-600 animate-pulse' : 'bg-gray-700'}`}>
+        <i className={`fas ${isRunning ? 'fa-stop' : 'fa-stopwatch'}`}></i>
+      </button>
+    </div>
   );
 };

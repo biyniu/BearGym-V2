@@ -56,7 +56,6 @@ export default function CoachDashboard() {
     if (success) {
       alert("Plan został pomyślnie zaktualizowany w chmurze!");
       setIsEditingPlan(false);
-      // Odśwież dane klienta
       loadClientDetail(selectedClient.code);
     } else {
       alert("Wystąpił błąd podczas zapisu. Spróbuj ponownie.");
@@ -98,6 +97,26 @@ export default function CoachDashboard() {
     setEditedPlan(newPlan);
   };
 
+  const addWorkoutDay = () => {
+    const title = window.prompt("Podaj nazwę nowego planu (np. Trening D):");
+    if (!title) return;
+    const id = title.toLowerCase().replace(/\s+/g, '_') + '_' + Date.now();
+    const newPlan = { ...editedPlan };
+    newPlan[id] = {
+      title,
+      warmup: [],
+      exercises: []
+    };
+    setEditedPlan(newPlan);
+  };
+
+  const removeWorkoutDay = (id: string) => {
+    if (!window.confirm(`Usunąć cały plan "${editedPlan[id].title}"?`)) return;
+    const newPlan = { ...editedPlan };
+    delete newPlan[id];
+    setEditedPlan(newPlan);
+  };
+
   const getExerciseChartData = (workoutId: string, exerciseId: string) => {
     if (!selectedClient?.history) return [];
     const history = selectedClient.history[workoutId];
@@ -133,7 +152,6 @@ export default function CoachDashboard() {
 
     rows.forEach((row, idx) => {
       const cols = row.split('\t');
-      // Skip empty rows or header
       if (cols.length < 3 || !cols[0]?.trim() || cols[0].toLowerCase().startsWith('plan')) return;
 
       const planName = cols[0].trim();
@@ -147,7 +165,6 @@ export default function CoachDashboard() {
       const rest = parseInt(cols[8]) || 90;
       const link = cols[9]?.trim() || "";
       
-      // KOLUMNA TYPE: Obsługa nowej kolumny (indeks 10)
       const rawType = cols[10]?.trim().toLowerCase() || "standard";
       let type: ExerciseType = "standard";
       if (rawType.includes('time')) type = "time";
@@ -286,6 +303,12 @@ export default function CoachDashboard() {
                     ) : (
                       <>
                         <button 
+                          onClick={addWorkoutDay}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center"
+                        >
+                          <i className="fas fa-calendar-plus mr-2"></i> DODAJ DZIEŃ
+                        </button>
+                        <button 
                           onClick={handleSavePlanToCloud}
                           disabled={isSaving}
                           className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl text-xs font-bold transition flex items-center"
@@ -308,128 +331,134 @@ export default function CoachDashboard() {
                   <div key={id} className="bg-[#161616] rounded-3xl border border-gray-800 overflow-hidden shadow-xl">
                     <div className="bg-gradient-to-r from-blue-900/20 to-transparent p-6 border-b border-gray-800 flex justify-between items-center">
                       <h3 className="text-xl font-black text-white italic uppercase">{workout.title}</h3>
-                      {isEditingPlan && (
-                        <button 
-                          onClick={() => addExercise(id)}
-                          className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white border border-blue-500/30 px-4 py-1.5 rounded-lg text-[10px] font-bold transition"
-                        >
-                          <i className="fas fa-plus mr-1"></i> DODAJ ĆWICZENIE
-                        </button>
-                      )}
+                      <div className="flex space-x-2">
+                        {isEditingPlan && (
+                          <>
+                            <button 
+                              onClick={() => addExercise(id)}
+                              className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white border border-blue-500/30 px-4 py-1.5 rounded-lg text-[10px] font-bold transition"
+                            >
+                              <i className="fas fa-plus mr-1"></i> DODAJ ĆWICZENIE
+                            </button>
+                            <button 
+                              onClick={() => removeWorkoutDay(id)}
+                              className="bg-red-900/20 text-red-500 hover:bg-red-600 hover:text-white border border-red-500/30 px-3 py-1.5 rounded-lg text-[10px] font-bold transition"
+                            >
+                              <i className="fas fa-calendar-minus"></i>
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                     <div className="p-6">
-                      <table className="w-full text-left text-sm">
-                        <thead>
-                          <tr className="text-gray-500 border-b border-gray-800 uppercase text-[10px] font-black tracking-widest">
-                            <th className="pb-4 pl-2">#</th>
-                            <th className="pb-4">Ćwiczenie</th>
-                            <th className="pb-4 text-center">Serie</th>
-                            <th className="pb-4 text-center">Zakres</th>
-                            <th className="pb-4 text-center">Tempo</th>
-                            <th className="pb-4 text-center">RIR</th>
-                            <th className="pb-4 text-center">Przerwa</th>
-                            {isEditingPlan && <th className="pb-4 text-right">Akcje</th>}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-800">
-                          {workout.exercises?.map((ex: any, idx: number) => (
-                            <tr key={ex.id} className="hover:bg-white/[0.02] transition">
-                              <td className="py-4 pl-2 font-mono text-blue-500">{idx + 1}</td>
-                              <td className="py-4">
-                                {isEditingPlan ? (
-                                  <div className="space-y-1">
-                                    <input 
-                                      value={ex.name} 
-                                      onChange={(e) => updateExerciseField(id, idx, 'name', e.target.value)}
-                                      className="bg-black border border-gray-700 text-white p-1 rounded text-sm w-full font-bold focus:border-blue-500 outline-none"
-                                    />
-                                    <input 
-                                      value={ex.pl} 
-                                      onChange={(e) => updateExerciseField(id, idx, 'pl', e.target.value)}
-                                      className="bg-black border border-gray-700 text-gray-500 p-1 rounded text-[10px] w-full focus:border-blue-500 outline-none"
-                                    />
-                                  </div>
-                                ) : (
-                                  <>
-                                    <div className="font-bold text-white">{ex.name}</div>
-                                    <div className="text-[10px] text-gray-500 italic">{ex.pl}</div>
-                                  </>
-                                )}
-                              </td>
-                              <td className="py-4 text-center">
-                                {isEditingPlan ? (
-                                  <input 
-                                    type="number" 
-                                    value={ex.sets} 
-                                    onChange={(e) => updateExerciseField(id, idx, 'sets', parseInt(e.target.value))}
-                                    className="bg-black border border-gray-700 text-white p-1 rounded text-sm w-12 text-center font-bold focus:border-blue-500 outline-none"
-                                  />
-                                ) : (
-                                  <span className="font-bold text-white">{ex.sets}</span>
-                                )}
-                              </td>
-                              <td className="py-4 text-center">
-                                {isEditingPlan ? (
-                                  <input 
-                                    value={ex.reps} 
-                                    onChange={(e) => updateExerciseField(id, idx, 'reps', e.target.value)}
-                                    className="bg-black border border-gray-700 text-green-400 p-1 rounded text-sm w-16 text-center font-mono focus:border-blue-500 outline-none"
-                                  />
-                                ) : (
-                                  <span className="font-mono text-green-400">{ex.reps}</span>
-                                )}
-                              </td>
-                              <td className="py-4 text-center">
-                                {isEditingPlan ? (
-                                  <input 
-                                    value={ex.tempo} 
-                                    onChange={(e) => updateExerciseField(id, idx, 'tempo', e.target.value)}
-                                    className="bg-black border border-gray-700 text-blue-400 p-1 rounded text-sm w-16 text-center font-mono focus:border-blue-500 outline-none"
-                                  />
-                                ) : (
-                                  <span className="font-mono text-blue-400">{ex.tempo}</span>
-                                )}
-                              </td>
-                              <td className="py-4 text-center">
-                                {isEditingPlan ? (
-                                  <input 
-                                    value={ex.rir} 
-                                    onChange={(e) => updateExerciseField(id, idx, 'rir', e.target.value)}
-                                    className="bg-black border border-gray-700 text-red-400 p-1 rounded text-sm w-16 text-center font-mono focus:border-blue-500 outline-none"
-                                  />
-                                ) : (
-                                  <span className="font-mono text-red-400">{ex.rir}</span>
-                                )}
-                              </td>
-                              <td className="py-4 text-center">
-                                {isEditingPlan ? (
-                                  <div className="flex items-center justify-center">
-                                    <input 
-                                      type="number"
-                                      value={ex.rest} 
-                                      onChange={(e) => updateExerciseField(id, idx, 'rest', parseInt(e.target.value))}
-                                      className="bg-black border border-gray-700 text-gray-400 p-1 rounded text-sm w-12 text-center font-mono focus:border-blue-500 outline-none"
-                                    />
-                                    <span className="text-[8px] ml-1">s</span>
-                                  </div>
-                                ) : (
-                                  <span className="font-mono text-gray-400">{ex.rest}s</span>
-                                )}
-                              </td>
-                              {isEditingPlan && (
-                                <td className="py-4 text-right">
-                                  <button 
-                                    onClick={() => removeExercise(id, idx)}
-                                    className="text-red-900 hover:text-red-500 transition px-2"
-                                  >
-                                    <i className="fas fa-trash-alt"></i>
-                                  </button>
-                                </td>
-                              )}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                          <thead>
+                            <tr className="text-gray-500 border-b border-gray-800 uppercase text-[10px] font-black tracking-widest">
+                              <th className="pb-4 pl-2">#</th>
+                              <th className="pb-4 min-w-[200px]">Ćwiczenie</th>
+                              <th className="pb-4 text-center">S</th>
+                              <th className="pb-4 text-center">Reps</th>
+                              <th className="pb-4 text-center">Tempo</th>
+                              <th className="pb-4 text-center">RIR</th>
+                              <th className="pb-4 text-center">Rest</th>
+                              {isEditingPlan && <th className="pb-4 text-center">Typ</th>}
+                              {isEditingPlan && <th className="pb-4 text-right pr-2">Link/Usuń</th>}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-gray-800">
+                            {workout.exercises?.map((ex: any, idx: number) => (
+                              <tr key={ex.id} className="hover:bg-white/[0.02] transition">
+                                <td className="py-4 pl-2 font-mono text-blue-500">{idx + 1}</td>
+                                <td className="py-4">
+                                  {isEditingPlan ? (
+                                    <div className="space-y-1">
+                                      <input 
+                                        value={ex.name} 
+                                        onChange={(e) => updateExerciseField(id, idx, 'name', e.target.value)}
+                                        className="bg-black border border-gray-700 text-white p-1 rounded text-sm w-full font-bold focus:border-blue-500 outline-none"
+                                      />
+                                      <input 
+                                        value={ex.pl} 
+                                        onChange={(e) => updateExerciseField(id, idx, 'pl', e.target.value)}
+                                        className="bg-black border border-gray-700 text-gray-500 p-1 rounded text-[10px] w-full focus:border-blue-500 outline-none"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="font-bold text-white">{ex.name}</div>
+                                      <div className="text-[10px] text-gray-500 italic">{ex.pl}</div>
+                                    </>
+                                  )}
+                                </td>
+                                <td className="py-4 text-center">
+                                  {isEditingPlan ? (
+                                    <input type="number" value={ex.sets} onChange={(e) => updateExerciseField(id, idx, 'sets', parseInt(e.target.value))} className="bg-black border border-gray-700 text-white p-1 rounded text-sm w-10 text-center font-bold focus:border-blue-500 outline-none" />
+                                  ) : (
+                                    <span className="font-bold text-white">{ex.sets}</span>
+                                  )}
+                                </td>
+                                <td className="py-4 text-center">
+                                  {isEditingPlan ? (
+                                    <input value={ex.reps} onChange={(e) => updateExerciseField(id, idx, 'reps', e.target.value)} className="bg-black border border-gray-700 text-green-400 p-1 rounded text-sm w-12 text-center font-mono focus:border-blue-500 outline-none" />
+                                  ) : (
+                                    <span className="font-mono text-green-400">{ex.reps}</span>
+                                  )}
+                                </td>
+                                <td className="py-4 text-center">
+                                  {isEditingPlan ? (
+                                    <input value={ex.tempo} onChange={(e) => updateExerciseField(id, idx, 'tempo', e.target.value)} className="bg-black border border-gray-700 text-blue-400 p-1 rounded text-sm w-14 text-center font-mono focus:border-blue-500 outline-none" />
+                                  ) : (
+                                    <span className="font-mono text-blue-400">{ex.tempo}</span>
+                                  )}
+                                </td>
+                                <td className="py-4 text-center">
+                                  {isEditingPlan ? (
+                                    <input value={ex.rir} onChange={(e) => updateExerciseField(id, idx, 'rir', e.target.value)} className="bg-black border border-gray-700 text-red-400 p-1 rounded text-sm w-12 text-center font-mono focus:border-blue-500 outline-none" />
+                                  ) : (
+                                    <span className="font-mono text-red-400">{ex.rir}</span>
+                                  )}
+                                </td>
+                                <td className="py-4 text-center">
+                                  {isEditingPlan ? (
+                                    <input type="number" value={ex.rest} onChange={(e) => updateExerciseField(id, idx, 'rest', parseInt(e.target.value))} className="bg-black border border-gray-700 text-gray-400 p-1 rounded text-sm w-12 text-center font-mono focus:border-blue-500 outline-none" />
+                                  ) : (
+                                    <span className="font-mono text-gray-400">{ex.rest}s</span>
+                                  )}
+                                </td>
+                                {isEditingPlan && (
+                                  <td className="py-4 text-center">
+                                    <select value={ex.type} onChange={(e) => updateExerciseField(id, idx, 'type', e.target.value)} className="bg-black border border-gray-700 text-white p-1 rounded text-[10px] outline-none">
+                                      <option value="standard">STD</option>
+                                      <option value="reps_only">REPS</option>
+                                      <option value="time">TIME</option>
+                                    </select>
+                                  </td>
+                                )}
+                                <td className="py-4 text-right pr-2">
+                                  <div className="flex items-center justify-end space-x-2">
+                                    {isEditingPlan ? (
+                                      <>
+                                        <input 
+                                          value={ex.link} 
+                                          onChange={(e) => updateExerciseField(id, idx, 'link', e.target.value)} 
+                                          placeholder="YT link"
+                                          className="bg-black border border-gray-700 text-[8px] text-blue-500 p-1 rounded w-16 outline-none"
+                                        />
+                                        <button onClick={() => removeExercise(id, idx)} className="text-red-900 hover:text-red-500 transition px-1">
+                                          <i className="fas fa-trash-alt text-xs"></i>
+                                        </button>
+                                      </>
+                                    ) : (
+                                      ex.link && <a href={ex.link} target="_blank" rel="noreferrer" className="text-red-600 hover:text-red-400"><i className="fab fa-youtube"></i></a>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -641,12 +670,6 @@ export default function CoachDashboard() {
                       />
                     </div>
                   </div>
-
-                  <div className="mt-6 p-4 bg-blue-900/10 border border-blue-500/20 rounded-2xl">
-                     <p className="text-[10px] text-blue-300/60 leading-relaxed italic">
-                        Instrukcja: Skopiuj wiersze z Excela. Konwerter automatycznie rozpozna nazwy planów (kolumna 1) i sekcje (kolumna 2). Kolumna 11 (Type) określa sposób logowania: standard, time lub reps.
-                     </p>
-                  </div>
                 </div>
               </div>
             )}
@@ -736,7 +759,6 @@ function CoachCalendarWidget({ client }: { client: any }) {
     return d === t.getDate() && month === t.getMonth() && year === t.getFullYear();
   };
 
-  // Używamy logo klienta lub domyślnego
   const clientLogo = 'https://lh3.googleusercontent.com/u/0/d/1GZ-QR4EyK6Ho9czlpTocORhwiHW4FGnP';
 
   return (
@@ -771,7 +793,6 @@ function CoachCalendarWidget({ client }: { client: any }) {
               key={day} 
               className={`aspect-square rounded-lg flex items-center justify-center relative border transition overflow-hidden ${today ? 'border-blue-500 bg-blue-500/10' : 'border-gray-800 bg-black/40'} ${hasStrength || hasCardio ? 'border-opacity-100' : 'border-opacity-30'}`}
             >
-              {/* Zawsze wyświetlamy numer dnia w rogu, jeśli jest jakakolwiek aktywność */}
               {(hasStrength || hasCardio) ? (
                  <div className="absolute top-0.5 left-1 text-[8px] text-gray-400 font-mono z-20">{day}</div>
               ) : (
@@ -808,12 +829,6 @@ function CoachCalendarWidget({ client }: { client: any }) {
             </div>
           );
         })}
-      </div>
-
-      <div className="mt-6 flex justify-center space-x-4 text-[8px] font-black uppercase tracking-widest text-gray-500 border-t border-gray-800 pt-4">
-          <div className="flex items-center"><div className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1"></div> Dziś</div>
-          <div className="flex items-center"><div className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1"></div> Trening</div>
-          <div className="flex items-center"><div className="w-1.5 h-1.5 rounded-full bg-red-600 mr-1"></div> Cardio</div>
       </div>
     </div>
   );

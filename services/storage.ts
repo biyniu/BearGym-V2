@@ -7,33 +7,27 @@ export const remoteStorage = {
       const cleanCode = code.trim().toUpperCase();
       const url = `${CLIENT_CONFIG.googleAppScriptUrl}?code=${encodeURIComponent(cleanCode)}`;
       const response = await fetch(url, { cache: 'no-cache' });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       return await response.json();
     } catch (e) {
-      return { success: false, error: "Błąd połączenia z serwerem Google." };
+      return { success: false, error: "Błąd połączenia." };
     }
   },
 
+  // NOWE: Metody dla Panelu Trenera
   fetchCoachOverview: async (masterCode: string) => {
     try {
-      const url = `${CLIENT_CONFIG.googleAppScriptUrl}?code=${encodeURIComponent(masterCode.trim().toUpperCase())}&type=coach_overview`;
+      const url = `${CLIENT_CONFIG.googleAppScriptUrl}?code=${encodeURIComponent(masterCode)}&type=coach_overview`;
       const response = await fetch(url, { cache: 'no-cache' });
-      if (!response.ok) throw new Error(`Serwer zwrócił błąd: ${response.status}`);
-      const data = await response.json();
-      return data;
-    } catch (e: any) { 
-      console.error("Coach Overview Error:", e);
-      return { success: false, error: e.message || "Błąd połączenia sieciowego." }; 
-    }
+      return await response.json();
+    } catch (e) { return { success: false }; }
   },
 
   fetchCoachClientDetail: async (masterCode: string, clientId: string) => {
     try {
-      const url = `${CLIENT_CONFIG.googleAppScriptUrl}?code=${encodeURIComponent(masterCode.trim().toUpperCase())}&type=coach_client_detail&client_id=${encodeURIComponent(clientId)}`;
+      const url = `${CLIENT_CONFIG.googleAppScriptUrl}?code=${encodeURIComponent(masterCode)}&type=coach_client_detail&client_id=${encodeURIComponent(clientId)}`;
       const response = await fetch(url, { cache: 'no-cache' });
-      const data = await response.json();
-      return data;
-    } catch (e) { return { success: false, error: "Błąd pobierania danych klienta." }; }
+      return await response.json();
+    } catch (e) { return { success: false }; }
   },
 
   saveToCloud: async (code: string, type: string, data: any) => {
@@ -43,22 +37,6 @@ export const remoteStorage = {
         mode: 'no-cors', 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: code.toUpperCase(), type, data })
-      });
-      return true;
-    } catch (e) { return false; }
-  },
-
-  createClient: async (masterCode: string, newClientCode: string, name: string) => {
-    try {
-      await fetch(CLIENT_CONFIG.googleAppScriptUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          code: masterCode.toUpperCase(), 
-          type: 'create_client', 
-          data: { newCode: newClientCode.toUpperCase(), name } 
-        })
       });
       return true;
     } catch (e) { return false; }

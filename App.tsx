@@ -26,6 +26,7 @@ interface AppContextType {
   updateLogo: (s: string) => void;
   playAlarm: () => void;
   syncData: (type: 'history' | 'extras' | 'plan', data: any) => void;
+  // Globalne stopery
   workoutStartTime: number | null;
   setWorkoutStartTime: (t: number | null) => void;
   restTimer: { timeLeft: number | null, duration: number };
@@ -35,14 +36,6 @@ interface AppContextType {
 
 export const AppContext = React.createContext<AppContextType>({} as AppContextType);
 
-// Helper to ensure data is an object
-const ensureObject = (data: any): any => {
-  if (typeof data === 'string' && data.trim().startsWith('{')) {
-    try { return JSON.parse(data); } catch (e) { return {}; }
-  }
-  return data || {};
-};
-
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -51,7 +44,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const isHome = location.pathname === '/';
   const isWorkout = location.pathname.startsWith('/workout/');
   const workoutId = isWorkout ? location.pathname.split('/').pop() : null;
-  const workoutTitle = (workoutId && workouts && typeof workouts === 'object' && workouts[workoutId]) ? workouts[workoutId].title : "BEAR GYM";
+  const workoutTitle = workoutId && workouts[workoutId] ? workouts[workoutId].title : "BEAR GYM";
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col relative bg-[#121212] text-[#e0e0e0] font-sans">
@@ -100,7 +93,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         )}
       </header>
 
-      <div className="p-3 space-y-4 flex-grow pb-24 overflow-x-hidden">
+      <div className="p-3 space-y-4 flex-grow pb-24">
         {children}
       </div>
       
@@ -128,12 +121,9 @@ const ClientRouteGuard: React.FC<{
   handleLogin: (code: string, userData: any) => void 
 }> = ({ children, clientCode, syncError, isReady, handleLogin }) => {
   const location = useLocation();
-  const path = location.pathname.toLowerCase();
-  
-  const isCoachRoute = path === '/coach-admin';
+  const isCoachRoute = location.pathname === '/coach-admin';
 
   if (isCoachRoute) return <>{children}</>;
-  
   if (!clientCode) return <AuthView onLogin={handleLogin} />;
   if (syncError) return <div className="p-10 text-center text-red-500">{syncError}</div>;
   if (!isReady) return (
@@ -150,7 +140,7 @@ export default function App() {
   const [clientName, setClientName] = useState<string>(localStorage.getItem('bear_gym_client_name') || '');
   const [workouts, setWorkouts] = useState<WorkoutsMap>(() => {
     const local = localStorage.getItem(`${CLIENT_CONFIG.storageKey}_workouts`);
-    return ensureObject(local);
+    return local ? JSON.parse(local) : {};
   });
   const [settings, setSettings] = useState<AppSettings>(localStorageCache.get('app_settings') || { volume: 0.5, soundType: 'beep2', autoRestTimer: true });
   const [logo, setLogo] = useState<string>(localStorage.getItem('app_logo') || 'https://lh3.googleusercontent.com/u/0/d/1GZ-QR4EyK6Ho9czlpTocORhwiHW4FGnP');
@@ -158,6 +148,7 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
 
+  // Stopery
   const [workoutStartTime, setWorkoutStartTimeState] = useState<number | null>(() => {
     const saved = sessionStorage.getItem('workout_start_time');
     return saved ? parseInt(saved) : null;
@@ -210,36 +201,27 @@ export default function App() {
   };
 
   const initData = useCallback(async (code: string) => {
-    const currentHash = window.location.hash.toLowerCase();
-    if (currentHash.includes('coach-admin')) {
-      setIsReady(true);
-      return;
-    }
-    
     if (localStorage.getItem('is_syncing')) return;
     setSyncError(null);
     try {
       const result = await remoteStorage.fetchUserData(code);
       if (result.success) {
         if (result.plan) {
-          const planObj = ensureObject(result.plan);
-          setWorkouts(planObj);
-          storage.saveWorkouts(planObj);
+          setWorkouts(result.plan);
+          storage.saveWorkouts(result.plan);
         }
         if (result.name) {
           setClientName(result.name);
           localStorage.setItem('bear_gym_client_name', result.name);
         }
         if (result.history) {
-          const historyObj = ensureObject(result.history);
-          Object.entries(historyObj).forEach(([id, h]) => {
+          Object.entries(result.history).forEach(([id, h]) => {
             storage.saveHistory(id, h as any[]);
           });
         }
         if (result.extras) {
-          const extrasObj = ensureObject(result.extras);
-          storage.saveMeasurements(extrasObj.measurements || []);
-          storage.saveCardioSessions(extrasObj.cardio || []);
+          storage.saveMeasurements(result.extras.measurements || []);
+          storage.saveCardioSessions(result.extras.cardio || []);
         }
         setIsReady(true);
       } else {
@@ -271,9 +253,8 @@ export default function App() {
       setClientName(userData.name);
       localStorage.setItem('bear_gym_client_name', userData.name);
     }
-    const planObj = ensureObject(userData.plan);
-    setWorkouts(planObj);
-    storage.saveWorkouts(planObj);
+    setWorkouts(userData.plan || {});
+    storage.saveWorkouts(userData.plan || {});
     setIsReady(true);
   };
 

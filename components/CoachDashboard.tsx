@@ -34,12 +34,16 @@ export default function CoachDashboard() {
 
   const fetchClients = async (code: string) => {
     setLoading(true);
-    const res = await remoteStorage.fetchCoachOverview(code);
-    if (res.success) {
-      setClients(res.clients || []);
-      setApiError(null);
-    } else {
-      setApiError(res.error || "Błąd pobierania listy klientów.");
+    try {
+      const res = await remoteStorage.fetchCoachOverview(code);
+      if (res.success) {
+        setClients(res.clients || []);
+        setApiError(null);
+      } else {
+        setApiError(res.error || "Błąd pobierania listy klientów.");
+      }
+    } catch (e: any) {
+      setApiError("Błąd sieci (CORS lub URL): " + e.message);
     }
     setLoading(false);
   };
@@ -60,7 +64,7 @@ export default function CoachDashboard() {
     if (!code) return;
 
     if (code !== expectedPassword) {
-        setApiError(`Wpisane hasło (${code}) nie zgadza się z hasłem w aplikacji (${expectedPassword}).`);
+        setApiError(`Wpisane hasło (${code}) nie zgadza się z hasłem Trenera.`);
         return;
     }
 
@@ -73,8 +77,7 @@ export default function CoachDashboard() {
         sessionStorage.setItem(authKey, 'true');
         sessionStorage.setItem(codeKey, code);
       } else {
-        // Skrypt odpowiedział {success: false} - wyświetlamy dokładny powód błędu
-        setApiError(`Skrypt Google odrzucił hasło: ${res.error}`);
+        setApiError(`Skrypt Google: ${res.error}`);
       }
     } catch (err: any) {
       setApiError("Błąd połączenia: " + err.message);
@@ -95,7 +98,7 @@ export default function CoachDashboard() {
       setShowAddForm(false);
       fetchClients(masterCode);
     } else {
-      alert("Błąd zapisu w Google Sheets.");
+      alert("Błąd zapisu. Upewnij się, że skrypt jest wdrożony jako 'Każdy'.");
     }
     setLoading(false);
   };
@@ -106,11 +109,18 @@ export default function CoachDashboard() {
     const res = await remoteStorage.fetchCoachClientDetail(masterCode, clientId);
     if (res.success) {
       setSelectedClient(res);
-      setEditedPlan(res.plan || {});
+      
+      // Bezpieczne parsowanie planu jeśli jest stringiem
+      let rawPlan = res.plan;
+      if (typeof rawPlan === 'string' && rawPlan.trim().startsWith('{')) {
+        try { rawPlan = JSON.parse(rawPlan); } catch (e) { rawPlan = {}; }
+      }
+      
+      setEditedPlan(rawPlan || {});
       setIsEditingPlan(false);
       setActiveTab('plan');
     } else {
-      setApiError(res.error || "Błąd pobierania danych klienta.");
+      setApiError(res.error || "Błąd danych klienta.");
     }
     setLoading(false);
   };
@@ -124,7 +134,7 @@ export default function CoachDashboard() {
       setIsEditingPlan(false);
       loadClientDetail(selectedClient.code);
     } else {
-      alert("Błąd zapisu.");
+      alert("Błąd zapisu planu.");
     }
     setIsSaving(false);
   };
@@ -146,21 +156,21 @@ export default function CoachDashboard() {
           <form onSubmit={handleLogin} className="space-y-4 mt-8">
             <input 
               type="password" 
-              placeholder="WPISZ: TRENER123"
+              placeholder="HASŁO TRENERA"
               value={masterCode}
               onChange={(e) => setMasterCode(e.target.value.toUpperCase())}
-              className={`w-full bg-black border border-gray-700 text-white p-4 rounded-xl text-center focus:${accentBorder} outline-none font-mono tracking-[0.2em]`}
+              className={`w-full bg-black border border-gray-700 text-white p-4 rounded-xl text-center focus:${accentBorder} outline-none font-mono tracking-[0.2em] uppercase`}
               autoFocus
             />
             {apiError && (
-                <div className="bg-red-900/20 border border-red-900/50 text-red-500 p-3 rounded-lg text-[10px] font-bold">
-                    <i className="fas fa-exclamation-triangle mr-2"></i> {apiError}
+                <div className="bg-red-900/20 border border-red-900/50 text-red-500 p-4 rounded-xl text-[10px] font-bold text-left">
+                    <p><i className="fas fa-exclamation-triangle mr-2"></i> {apiError}</p>
                 </div>
             )}
             <button 
               type="submit"
               disabled={loading}
-              className={`w-full ${accentColor} hover:opacity-90 text-white font-black py-4 rounded-xl transition shadow-lg flex items-center justify-center italic`}
+              className={`w-full ${accentColor} hover:opacity-90 text-white font-black py-4 rounded-xl transition shadow-lg flex items-center justify-center italic uppercase`}
             >
               {loading ? <i className="fas fa-spinner fa-spin"></i> : "ZALOGUJ TRENERA"}
             </button>
@@ -173,6 +183,7 @@ export default function CoachDashboard() {
 
   return (
     <div className="fixed inset-0 bg-[#0f0f0f] flex text-gray-300 font-sans z-[2000] overflow-hidden animate-fade-in">
+      {/* SIDEBAR */}
       <aside className="w-80 bg-[#161616] border-r border-gray-800 flex flex-col h-full shrink-0 shadow-2xl">
         <div className="p-6 border-b border-gray-800 flex items-center space-x-3">
           <div className={`w-10 h-10 ${accentColor} rounded flex items-center justify-center text-white font-black italic shadow-lg shrink-0`}>B</div>
@@ -214,19 +225,31 @@ export default function CoachDashboard() {
         <div className="flex-grow overflow-y-auto px-4 py-4 space-y-1">
           <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest px-2 mb-2 italic">Podopieczni ({clients.length})</p>
           {loading && <div className="text-center p-4"><i className="fas fa-spinner fa-spin text-blue-500"></i></div>}
-          {clients.map(c => (
-            <button 
-              key={c.code}
-              onClick={() => loadClientDetail(c.code)}
-              className={`w-full text-left p-4 rounded-2xl transition flex items-center justify-between border ${selectedClient?.code === c.code ? `${accentColor}/10 ${accentBorder} text-white` : 'bg-transparent border-transparent hover:bg-gray-800 text-gray-400'}`}
-            >
-              <div className="overflow-hidden">
-                <div className="font-black text-xs uppercase italic tracking-tighter truncate">{c.name}</div>
-                <div className="text-[9px] font-mono text-gray-500">{c.code}</div>
-              </div>
-              <i className="fas fa-chevron-right text-[10px] opacity-30 shrink-0"></i>
-            </button>
-          ))}
+          {clients.length === 0 && !loading && (
+            <div className="text-center p-8 opacity-20 italic">
+               <i className="fas fa-users text-2xl mb-2"></i>
+               <p className="text-[9px] font-bold uppercase">Brak klientów</p>
+            </div>
+          )}
+          {clients.map(c => {
+            // Bezpieczne sprawdzanie czy nazwa nie jest JSONem
+            const isJsonName = c.name && c.name.trim().startsWith('{');
+            const displayName = isJsonName ? `KLIENT: ${c.code}` : c.name;
+            
+            return (
+              <button 
+                key={c.code}
+                onClick={() => loadClientDetail(c.code)}
+                className={`w-full text-left p-4 rounded-2xl transition flex items-center justify-between border ${selectedClient?.code === c.code ? `${accentColor}/10 ${accentBorder} text-white` : 'bg-transparent border-transparent hover:bg-gray-800 text-gray-400'}`}
+              >
+                <div className="overflow-hidden pr-2">
+                  <div className="font-black text-xs uppercase italic tracking-tighter truncate max-w-[150px]">{displayName}</div>
+                  <div className="text-[9px] font-mono text-gray-500">{c.code}</div>
+                </div>
+                <i className="fas fa-chevron-right text-[10px] opacity-30 shrink-0"></i>
+              </button>
+            );
+          })}
         </div>
         
         <div className="p-4 border-t border-gray-800 bg-black/20">
@@ -234,13 +257,16 @@ export default function CoachDashboard() {
         </div>
       </aside>
 
+      {/* MAIN CONTENT */}
       <main className="flex-grow overflow-y-auto p-10 bg-gradient-to-br from-[#0f0f0f] to-[#050505]">
         {selectedClient ? (
           <div className="max-w-6xl mx-auto animate-fade-in">
             <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6 border-b border-gray-800 pb-8">
               <div>
-                <h1 className="text-5xl font-black text-white italic uppercase tracking-tighter leading-none mb-2">{selectedClient.name}</h1>
-                <p className={`${accentText} font-mono text-sm tracking-widest uppercase font-bold`}>KOD: {selectedClient.code}</p>
+                <h1 className="text-5xl font-black text-white italic uppercase tracking-tighter leading-none mb-2 truncate max-w-2xl">
+                    {selectedClient.name && selectedClient.name.startsWith('{') ? `KOD: ${selectedClient.code}` : selectedClient.name}
+                </h1>
+                <p className={`${accentText} font-mono text-sm tracking-widest uppercase font-bold`}>ID: {selectedClient.code}</p>
               </div>
               <div className="flex bg-[#161616] p-1.5 rounded-2xl border border-gray-800 shadow-lg shrink-0">
                 <TabBtn active={activeTab === 'plan'} onClick={() => setActiveTab('plan')} label="PLAN" icon="fa-dumbbell" color={accentColor} />
@@ -257,7 +283,7 @@ export default function CoachDashboard() {
             {activeTab === 'plan' && (
               <div className="space-y-8 animate-fade-in pb-20">
                 <div className="flex justify-between items-center bg-[#161616] p-5 rounded-2xl border border-gray-800 shadow-xl">
-                  <p className="text-xs font-black text-gray-500 uppercase tracking-widest italic">Edytor Planu</p>
+                  <p className="text-xs font-black text-gray-500 uppercase tracking-widest italic">Edytor Treningu</p>
                   <div className="flex space-x-3">
                     {!isEditingPlan ? (
                       <button onClick={() => setIsEditingPlan(true)} className={`${accentColor} text-white px-8 py-3 rounded-xl text-xs font-black italic uppercase transition flex items-center shadow-lg hover:opacity-90`}><i className="fas fa-edit mr-2"></i> EDYTUJ TRENING</button>
@@ -272,10 +298,10 @@ export default function CoachDashboard() {
                   </div>
                 </div>
 
-                {(!editedPlan || Object.keys(editedPlan).length === 0) ? (
+                {(!editedPlan || typeof editedPlan !== 'object' || Object.keys(editedPlan).length === 0) ? (
                     <div className="text-center py-20 bg-[#161616] rounded-3xl border border-gray-800 opacity-20 italic">
                         <i className="fas fa-clipboard-list text-6xl mb-4"></i>
-                        <p className="text-sm font-black uppercase italic tracking-widest">Brak zapisanego planu.</p>
+                        <p className="text-sm font-black uppercase italic tracking-widest">Plan jest pusty lub wymaga poprawnego formatu.</p>
                     </div>
                 ) : (
                     Object.entries(editedPlan || {}).map(([id, workout]: any) => (
@@ -319,13 +345,13 @@ export default function CoachDashboard() {
                 <div className="bg-[#161616] rounded-3xl p-20 border border-gray-800 shadow-2xl inline-block max-w-lg w-full">
                     <i className={`fas fa-history text-6xl mb-6 ${accentText} opacity-20`}></i>
                     <p className="font-black uppercase tracking-widest text-gray-600 italic">Historia w Google Sheets</p>
-                    <p className="text-[10px] text-gray-700 mt-4 uppercase italic">Logi treningowe są zapisywane w Kolumnie D arkusza 'Klienci'.</p>
+                    <p className="text-[10px] text-gray-700 mt-4 uppercase italic">Dane są bezpieczne w Twoim arkuszu Google.</p>
                 </div>
               </div>
             )}
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center opacity-10 animate-fade-in">
+          <div className="h-full flex flex-col items-center justify-center opacity-10 animate-fade-in text-center p-10">
             <i className="fas fa-user-tie text-9xl mb-10 text-blue-500"></i>
             <h2 className="text-4xl font-black italic tracking-tighter uppercase">Panel Trenera</h2>
             <p className="text-sm font-bold mt-4 uppercase tracking-widest italic">Wybierz klienta z listy po lewej</p>

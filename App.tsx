@@ -35,6 +35,14 @@ interface AppContextType {
 
 export const AppContext = React.createContext<AppContextType>({} as AppContextType);
 
+// Helper to ensure data is an object
+const ensureObject = (data: any): any => {
+  if (typeof data === 'string' && data.trim().startsWith('{')) {
+    try { return JSON.parse(data); } catch (e) { return {}; }
+  }
+  return data || {};
+};
+
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -43,7 +51,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const isHome = location.pathname === '/';
   const isWorkout = location.pathname.startsWith('/workout/');
   const workoutId = isWorkout ? location.pathname.split('/').pop() : null;
-  const workoutTitle = workoutId && workouts[workoutId] ? workouts[workoutId].title : "BEAR GYM";
+  const workoutTitle = (workoutId && workouts && typeof workouts === 'object' && workouts[workoutId]) ? workouts[workoutId].title : "BEAR GYM";
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col relative bg-[#121212] text-[#e0e0e0] font-sans">
@@ -92,7 +100,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         )}
       </header>
 
-      <div className="p-3 space-y-4 flex-grow pb-24">
+      <div className="p-3 space-y-4 flex-grow pb-24 overflow-x-hidden">
         {children}
       </div>
       
@@ -142,7 +150,7 @@ export default function App() {
   const [clientName, setClientName] = useState<string>(localStorage.getItem('bear_gym_client_name') || '');
   const [workouts, setWorkouts] = useState<WorkoutsMap>(() => {
     const local = localStorage.getItem(`${CLIENT_CONFIG.storageKey}_workouts`);
-    return local ? JSON.parse(local) : {};
+    return ensureObject(local);
   });
   const [settings, setSettings] = useState<AppSettings>(localStorageCache.get('app_settings') || { volume: 0.5, soundType: 'beep2', autoRestTimer: true });
   const [logo, setLogo] = useState<string>(localStorage.getItem('app_logo') || 'https://lh3.googleusercontent.com/u/0/d/1GZ-QR4EyK6Ho9czlpTocORhwiHW4FGnP');
@@ -214,21 +222,24 @@ export default function App() {
       const result = await remoteStorage.fetchUserData(code);
       if (result.success) {
         if (result.plan) {
-          setWorkouts(result.plan);
-          storage.saveWorkouts(result.plan);
+          const planObj = ensureObject(result.plan);
+          setWorkouts(planObj);
+          storage.saveWorkouts(planObj);
         }
         if (result.name) {
           setClientName(result.name);
           localStorage.setItem('bear_gym_client_name', result.name);
         }
         if (result.history) {
-          Object.entries(result.history).forEach(([id, h]) => {
+          const historyObj = ensureObject(result.history);
+          Object.entries(historyObj).forEach(([id, h]) => {
             storage.saveHistory(id, h as any[]);
           });
         }
         if (result.extras) {
-          storage.saveMeasurements(result.extras.measurements || []);
-          storage.saveCardioSessions(result.extras.cardio || []);
+          const extrasObj = ensureObject(result.extras);
+          storage.saveMeasurements(extrasObj.measurements || []);
+          storage.saveCardioSessions(extrasObj.cardio || []);
         }
         setIsReady(true);
       } else {
@@ -260,8 +271,9 @@ export default function App() {
       setClientName(userData.name);
       localStorage.setItem('bear_gym_client_name', userData.name);
     }
-    setWorkouts(userData.plan || {});
-    storage.saveWorkouts(userData.plan || {});
+    const planObj = ensureObject(userData.plan);
+    setWorkouts(planObj);
+    storage.saveWorkouts(planObj);
     setIsReady(true);
   };
 

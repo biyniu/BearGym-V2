@@ -122,10 +122,9 @@ const ClientRouteGuard: React.FC<{
   const location = useLocation();
   const path = location.pathname.toLowerCase();
   
-  // Guard allows access to admin paths directly
-  const isAdminRoute = path === '/admin' || path === '/coach-admin';
+  const isCoachRoute = path === '/coach-admin';
 
-  if (isAdminRoute) return <>{children}</>;
+  if (isCoachRoute) return <>{children}</>;
   
   if (!clientCode) return <AuthView onLogin={handleLogin} />;
   if (syncError) return <div className="p-10 text-center text-red-500">{syncError}</div>;
@@ -204,7 +203,7 @@ export default function App() {
 
   const initData = useCallback(async (code: string) => {
     const currentHash = window.location.hash.toLowerCase();
-    if (currentHash.includes('admin')) {
+    if (currentHash.includes('coach-admin')) {
       setIsReady(true);
       return;
     }
@@ -321,7 +320,6 @@ export default function App() {
             <Route path="/measurements" element={<MeasurementsView />} />
             <Route path="/cardio" element={<CardioView />} />
             <Route path="/settings" element={<SettingsView />} />
-            <Route path="/admin" element={<CoachDashboard />} />
             <Route path="/coach-admin" element={<CoachDashboard />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

@@ -20,7 +20,6 @@ export default function CoachDashboard() {
 
   // Stan konwertera JSON
   const [excelInput, setExcelInput] = useState('');
-  const [jsonWorkoutTitle, setJsonWorkoutTitle] = useState('Nowy Trening');
 
   const handleLogin = async () => {
     setLoading(true);
@@ -130,31 +129,61 @@ export default function CoachDashboard() {
   const convertedJsonOutput = useMemo(() => {
     if (!excelInput.trim()) return '';
     const rows = excelInput.trim().split('\n');
-    const exercises = rows.map((row, idx) => {
+    const result: Record<string, any> = {};
+
+    rows.forEach((row, idx) => {
       const cols = row.split('\t');
-      return {
-        id: `ex_${idx + 1}_${Date.now()}`,
-        name: cols[0]?.trim() || "Ćwiczenie",
-        pl: cols[1]?.trim() || "",
-        sets: parseInt(cols[2]) || 3,
-        reps: cols[3]?.trim() || "10",
-        tempo: cols[4]?.trim() || "2011",
-        rir: cols[5]?.trim() || "1",
-        rest: parseInt(cols[6]) || 90,
-        link: cols[7]?.trim() || "",
-        type: "standard"
-      };
+      // Skip empty rows or header
+      if (cols.length < 3 || !cols[0]?.trim() || cols[0].toLowerCase().startsWith('plan')) return;
+
+      const planName = cols[0].trim();
+      const section = cols[1]?.trim().toLowerCase() || "";
+      const name = cols[2]?.trim() || "Ćwiczenie";
+      const pl = cols[3]?.trim() || "";
+      const sets = parseInt(cols[4]) || 1;
+      const reps = cols[5]?.trim() || "10";
+      const tempo = cols[6]?.trim() || "-";
+      const rir = cols[7]?.trim() || "-";
+      const rest = parseInt(cols[8]) || 90;
+      const link = cols[9]?.trim() || "";
+      const type = (cols[10]?.trim() as ExerciseType) || "standard";
+
+      // Unique ID for the workout based on title
+      const workoutId = planName.toLowerCase().replace(/\s+/g, '_');
+      
+      if (!result[workoutId]) {
+        result[workoutId] = {
+          title: planName,
+          warmup: [],
+          exercises: []
+        };
+      }
+
+      if (section === 'rozgrzewka') {
+        result[workoutId].warmup.push({
+          name,
+          pl,
+          link,
+          reps: sets > 1 ? `${sets}x ${reps}` : reps
+        });
+      } else {
+        result[workoutId].exercises.push({
+          id: `ex_${idx}_${Date.now()}`,
+          name,
+          pl,
+          sets,
+          reps,
+          tempo,
+          rir,
+          rest,
+          link,
+          type
+        });
+      }
     });
 
-    const result = {
-      [`plan_${Date.now()}`]: {
-        title: jsonWorkoutTitle,
-        warmup: [],
-        exercises: exercises
-      }
-    };
     return JSON.stringify(result, null, 2);
-  }, [excelInput, jsonWorkoutTitle]);
+  }, [excelInput]);
 
   const CustomLabel = (props: any) => {
     const { x, y, value } = props;
@@ -581,35 +610,28 @@ export default function CoachDashboard() {
                 <div className="bg-[#161616] p-8 rounded-3xl border border-gray-800 shadow-xl">
                   <div className="flex items-center justify-between mb-6">
                     <div>
-                      <h3 className="text-white font-black italic uppercase">Excel to JSON Converter</h3>
-                      <p className="text-xs text-gray-500 mt-1">Wklej wiersze z Excela (Tab-separated)</p>
+                      <h3 className="text-white font-black italic uppercase text-lg">Excel to JSON Converter</h3>
+                      <p className="text-xs text-gray-500 mt-1">Konwertuj pełne plany wielodniowe na format aplikacji</p>
                     </div>
-                    <input 
-                      type="text" 
-                      placeholder="Tytuł Treningu"
-                      value={jsonWorkoutTitle}
-                      onChange={(e) => setJsonWorkoutTitle(e.target.value)}
-                      className="bg-black border border-gray-700 text-white text-xs p-2 rounded-lg focus:border-blue-500 outline-none w-48"
-                    />
                   </div>
                   
                   <div className="space-y-4">
                     <div>
-                      <label className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mb-2 block">Dane z Excela:</label>
+                      <label className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mb-2 block">Wklej dane z Excela (Kolumny: Plan, Sekcja, Nazwa, Opis...):</label>
                       <textarea 
-                        className="w-full bg-black border border-gray-800 text-gray-300 p-4 rounded-2xl font-mono text-xs focus:border-blue-500 outline-none transition"
-                        rows={8}
-                        placeholder="Nazwa	Opis	Serie	Powt	Tempo	RIR	Przerwa	Link"
+                        className="w-full bg-black border border-gray-800 text-gray-300 p-4 rounded-2xl font-mono text-[10px] focus:border-blue-500 outline-none transition"
+                        rows={10}
+                        placeholder="PUSH 1	Rozgrzewka	Bieżnia	Opis...	1	10 min..."
                         value={excelInput}
                         onChange={(e) => setExcelInput(e.target.value)}
                       />
                     </div>
 
                     <div>
-                      <label className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mb-2 block">Wygenerowany JSON:</label>
+                      <label className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mb-2 block">Wygenerowany Obiekt Planu (Gotowy do zapisu):</label>
                       <textarea 
-                        className="w-full bg-[#0a0a0a] border border-gray-800 text-blue-400 p-4 rounded-2xl font-mono text-xs outline-none"
-                        rows={12}
+                        className="w-full bg-[#0a0a0a] border border-gray-800 text-blue-400 p-4 rounded-2xl font-mono text-[10px] outline-none"
+                        rows={14}
                         readOnly
                         value={convertedJsonOutput}
                       />
@@ -618,7 +640,7 @@ export default function CoachDashboard() {
 
                   <div className="mt-6 p-4 bg-blue-900/10 border border-blue-500/20 rounded-2xl">
                      <p className="text-[10px] text-blue-300/60 leading-relaxed italic">
-                        Instrukcja: Skopiuj wiersze z Excela zawierające kolumny w kolejności: Nazwa, Opis PL, Serie, Powtórzenia, Tempo, RIR, Przerwa (sekundy), Link do filmu. Wklej je w górne okno.
+                        Instrukcja: Skopiuj wiersze z Excela. Konwerter automatycznie rozpozna nazwy planów (kolumna 1) i sekcje (kolumna 2: Rozgrzewka/Trening). Nagłówek zostanie pominięty automatycznie.
                      </p>
                   </div>
                 </div>

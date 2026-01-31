@@ -131,13 +131,12 @@ export default function ActiveWorkout() {
         setWorkoutStartTime(null);
         sessionStorage.removeItem('workout_start_time');
         storage.clearTempInputs(id, workoutData.exercises);
-        // Przekierowanie na główną bez śladu w historii sesji
         navigate('/', { replace: true });
     }
   };
 
   return (
-    <div className="animate-fade-in pb-10 relative z-10">
+    <div className="animate-fade-in pb-10 relative">
       {showSuccessModal && <SuccessModal onClose={() => navigate('/')} />}
 
       <div className="flex flex-col mb-6 space-y-4">
@@ -188,20 +187,23 @@ export default function ActiveWorkout() {
         ))}
       </div>
 
-      <div className="mt-12 mb-8 px-4 flex flex-col space-y-6 relative z-20">
+      {/* Action Buttons Section */}
+      <div className="mt-12 mb-8 px-4 flex flex-col space-y-6 relative">
         <button 
+          type="button"
           onClick={handleFinish} 
           className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-5 rounded-2xl shadow-[0_10px_30px_rgba(22,163,74,0.3)] transition transform active:scale-95 flex items-center justify-center text-xl uppercase italic tracking-tighter"
         >
           <i className="fas fa-check-circle mr-3"></i> Zakończ i zapisz trening
         </button>
         
-        <div className="flex justify-end pr-2">
+        <div className="flex justify-center">
             <button 
-                onClick={(e) => { e.stopPropagation(); handleDiscard(); }} 
-                className="bg-red-900/20 hover:bg-red-600 text-red-500 hover:text-white px-5 py-2.5 rounded-xl text-[11px] font-black uppercase italic transition-all flex items-center border border-red-900/50 shadow-lg"
+                type="button"
+                onClick={handleDiscard} 
+                className="bg-red-900/10 hover:bg-red-600/20 text-red-500/60 hover:text-red-500 px-6 py-3 rounded-xl text-[10px] font-black uppercase italic transition-all flex items-center border border-red-900/20 hover:border-red-500/40"
             >
-                <i className="fas fa-trash-alt mr-2"></i> Nie zapisuj treningu
+                <i className="fas fa-times-circle mr-2"></i> Nie zapisuj i odrzuć trening
             </button>
         </div>
       </div>

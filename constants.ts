@@ -2,7 +2,7 @@
 export const CLIENT_CONFIG = {
   name: "BEAR GYM",
   // PAMIĘTAJ: Wklej tutaj URL swojego wdrożenia z Google Apps Script!
-  googleAppScriptUrl: "https://script.google.com/macros/s/AKfycbz2bM5DeepxbEAwMcMHAbJEJZ6O24OJpAuHFqp6PaEijn9N2BqdKUoUY-qJJk6E4u6i/exec",
+  googleAppScriptUrl: "https://script.google.com/macros/s/AKfycbxdsj6QztZZ1AIN9N2JbYJRZGn-yTNJ2LwtGi3O1_QD3tXXgbnfPdEqGNkO_lmZ-Oed8Q/exec",
   storageKey: 'bear_gym_cloud_v1'
 };
 

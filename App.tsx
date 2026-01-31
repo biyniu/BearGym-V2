@@ -121,7 +121,7 @@ const ClientRouteGuard: React.FC<{
   handleLogin: (code: string, userData: any) => void 
 }> = ({ children, clientCode, syncError, isReady, handleLogin }) => {
   const location = useLocation();
-  const isCoachRoute = location.pathname === '/coach-admin';
+  const isCoachRoute = location.pathname === '/admin';
 
   if (isCoachRoute) return <>{children}</>;
   if (!clientCode) return <AuthView onLogin={handleLogin} />;
@@ -313,7 +313,7 @@ export default function App() {
             <Route path="/measurements" element={<MeasurementsView />} />
             <Route path="/cardio" element={<CardioView />} />
             <Route path="/settings" element={<SettingsView />} />
-            <Route path="/coach-admin" element={<CoachDashboard />} />
+            <Route path="/admin" element={<CoachDashboard />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ClientRouteGuard>

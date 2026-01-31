@@ -220,7 +220,7 @@ function ActivityWidget({ workouts, logo }: { workouts: any, logo: string }) {
                         onClick={() => setViewMode('calendar')}
                         className={`text-[10px] font-black uppercase tracking-widest transition-colors ${viewMode === 'calendar' ? 'text-red-500' : 'text-gray-600'}`}
                     >
-                        Log Kalendarza
+                        Kalendarz
                     </button>
                     <button 
                         onClick={() => setViewMode('summary')}
@@ -253,19 +253,37 @@ function ActivityWidget({ workouts, logo }: { workouts: any, logo: string }) {
                                 const status = dayStatus[`${dStr}.${mStr}.${year}`];
                                 const hasStrength = status?.strength;
                                 const hasCardio = status?.cardio;
+                                
+                                let activityLabel = "";
+                                if (hasStrength && hasCardio) activityLabel = "TR + CA";
+                                else if (hasStrength) activityLabel = "TRENING";
+                                else if (hasCardio) activityLabel = "CARDIO";
+
                                 return (
                                     <div key={day} className={`aspect-square rounded-lg flex items-center justify-center relative border transition overflow-hidden border-gray-800 bg-[#121212] ${hasStrength ? 'shadow-[0_0_10px_rgba(239,68,68,0.2)]' : ''}`}>
-                                        {!hasStrength && !hasCardio && <span className="text-[10px] font-bold text-gray-700">{day}</span>}
+                                        {/* Day Number in Top Left - Enhanced visibility with black shadow for readability over logos */}
+                                        <span className={`absolute top-0.5 left-1 text-[8px] font-black z-20 ${hasStrength || hasCardio ? 'text-white drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,1)]' : 'text-gray-700'}`}>
+                                            {day}
+                                        </span>
+
                                         {hasCardio && !hasStrength && (
                                             <div className="absolute inset-0 flex items-center justify-center bg-red-900/10">
-                                                <i className="fas fa-heartbeat text-red-500 text-sm"></i>
+                                                <i className="fas fa-heartbeat text-red-500 text-sm opacity-50"></i>
                                             </div>
                                         )}
                                         {hasStrength && (
                                             <div className="absolute inset-0 w-full h-full">
                                                 <img src={logo} className="w-full h-full object-cover grayscale opacity-30" />
                                                 {hasCardio && <div className="absolute inset-0 bg-red-500/10"></div>}
-                                                <div className="absolute bottom-0 right-0 bg-red-500 w-2 h-2 rounded-tl"></div>
+                                            </div>
+                                        )}
+
+                                        {/* Activity Label at Bottom - Vibrant Red background for max visibility */}
+                                        {(hasStrength || hasCardio) && (
+                                            <div className="absolute bottom-0 left-0 right-0 bg-red-600 py-0.5 z-20 border-t border-red-500/50">
+                                                <div className="text-[6px] font-black text-white uppercase tracking-tighter text-center leading-none">
+                                                    {activityLabel}
+                                                </div>
                                             </div>
                                         )}
                                     </div>

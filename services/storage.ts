@@ -40,6 +40,22 @@ export const remoteStorage = {
       });
       return true;
     } catch (e) { return false; }
+  },
+
+  createClient: async (masterCode: string, newClientCode: string, name: string) => {
+    try {
+      const response = await fetch(CLIENT_CONFIG.googleAppScriptUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          code: masterCode.toUpperCase(), 
+          type: 'create_client', 
+          data: { newCode: newClientCode.toUpperCase(), name } 
+        })
+      });
+      return true;
+    } catch (e) { return false; }
   }
 };
 

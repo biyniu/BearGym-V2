@@ -231,7 +231,7 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index }: { exercise: Exe
   useEffect(() => {
     const newValues: Record<string, string> = {};
     const kgMatches = Array.from(lastResult.matchAll(/(\d+(?:[.,]\d+)?)\s*kg/gi));
-    const repsMatches = Array.from(lastResult.matchAll(/(?:x\s*|(\d+)\s*p)(\d+)?/gi)).map(m => m[2] || m[1]);
+    // ZMIANA: Nie pobieramy powtórzeń (repsMatches) do inputów
     
     for(let i=1; i<=exercise.sets; i++) {
       const uidKg = `input_${workoutId}_${exercise.id}_s${i}_kg`;
@@ -240,6 +240,7 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index }: { exercise: Exe
       const savedKg = storage.getTempInput(uidKg);
       const savedReps = storage.getTempInput(uidReps);
 
+      // Kopiujemy tylko wagę jeśli nie ma zapisanej tymczasowej
       if (!savedKg && kgMatches[i-1]) {
         storage.saveTempInput(uidKg, kgMatches[i-1][1]);
         newValues[uidKg] = kgMatches[i-1][1];
@@ -247,12 +248,8 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index }: { exercise: Exe
         newValues[uidKg] = savedKg;
       }
 
-      if (!savedReps && repsMatches[i-1]) {
-        storage.saveTempInput(uidReps, repsMatches[i-1]);
-        newValues[uidReps] = repsMatches[i-1];
-      } else {
-        newValues[uidReps] = savedReps;
-      }
+      // Powtórzenia tylko jeśli użytkownik już coś wpisał w tej sesji, NIE z historii
+      newValues[uidReps] = savedReps;
     }
     setInputValues(prev => ({ ...prev, ...newValues }));
   }, [lastResult, workoutId, exercise.id, exercise.sets]);

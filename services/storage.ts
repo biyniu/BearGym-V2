@@ -1,6 +1,31 @@
 
 import { CLIENT_CONFIG } from '../constants';
 
+export const parseDateStr = (dateStr: string): number => {
+  try {
+    // Szukamy daty w formacie DD.MM.YYYY
+    const match = dateStr.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+    if (!match) return 0;
+    
+    const day = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1; // Miesiące są indeksowane od 0
+    const year = parseInt(match[3], 10);
+    
+    // Domyślna godzina 12:00, jeśli brak czasu
+    let hour = 12;
+    let minute = 0;
+    
+    // Szukamy czasu HH:MM
+    const timeMatch = dateStr.match(/(\d{2}):(\d{2})/);
+    if (timeMatch) {
+        hour = parseInt(timeMatch[1], 10);
+        minute = parseInt(timeMatch[2], 10);
+    }
+    
+    return new Date(year, month, day, hour, minute).getTime();
+  } catch(e) { return 0; }
+};
+
 export const remoteStorage = {
   fetchUserData: async (code: string) => {
     try {
@@ -57,6 +82,9 @@ export const storage = {
   clearTempInputs: (workoutId: string, exercises: any[]) => {
     exercises.forEach(ex => {
       localStorage.removeItem(`${CLIENT_CONFIG.storageKey}_temp_note_${workoutId}_${ex.id}`);
+      // ZMIANA: Usuwamy również stan ukończenia (ptaszki)
+      localStorage.removeItem(`completed_${workoutId}_${ex.id}`);
+      
       for(let i=1; i<=ex.sets; i++) {
         localStorage.removeItem(`${CLIENT_CONFIG.storageKey}_temp_input_${workoutId}_${ex.id}_s${i}_kg`);
         localStorage.removeItem(`${CLIENT_CONFIG.storageKey}_temp_input_${workoutId}_${ex.id}_s${i}_reps`);

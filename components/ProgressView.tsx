@@ -1,7 +1,7 @@
 
 import React, { useContext, useState, useRef } from 'react';
 import { AppContext } from '../App';
-import { storage } from '../services/storage';
+import { storage, parseDateStr } from '../services/storage';
 import { CLIENT_CONFIG } from '../constants';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { WorkoutPlan } from '../types';
@@ -19,9 +19,10 @@ export default function ProgressView() {
     const history = storage.getHistory(workoutId);
     if (!history || history.length === 0) return [];
 
-    // Sortujemy po timestampie chronologicznie
+    // Sortujemy po dacie chronologicznie (OD NAJSTARSZEGO DO NAJNOWSZEGO)
+    // Używamy parseDateStr dla pewności
     return history.slice()
-      .sort((a, b) => a.timestamp - b.timestamp)
+      .sort((a, b) => parseDateStr(a.date) - parseDateStr(b.date))
       .map(entry => {
         const resultStr = entry.results[exerciseId];
         if (!resultStr) return null;

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useContext } from 'react';
 import { AppContext } from '../App';
 
@@ -12,9 +13,9 @@ export default function InstallPrompt() {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
     if (isStandalone) return;
 
-    // 2. Wykryj iOS
+    // 2. Wykryj iOS (w tym iPadOS, który może udawać Maca)
     const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
+    const isIosDevice = /iphone|ipad|ipod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     setIsIOS(isIosDevice);
 
     // 3. Jeśli to iOS, pokaż instrukcję po chwili (jeśli nie w trybie standalone)
@@ -58,40 +59,46 @@ export default function InstallPrompt() {
   if (!showPrompt) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 p-4 z-50 animate-fade-in">
-      <div className="bg-[#1e1e1e] border border-gray-700 rounded-xl shadow-2xl p-4 max-w-md mx-auto relative">
+    <div className="fixed bottom-0 left-0 right-0 p-4 z-50 animate-fade-in-up">
+      <div className="bg-[#1e1e1e] border border-gray-700 rounded-xl shadow-2xl p-5 max-w-md mx-auto relative ring-1 ring-white/10">
         <button 
             onClick={handleDismiss}
-            className="absolute top-2 right-2 text-gray-500 hover:text-white p-2"
+            className="absolute top-2 right-2 text-gray-500 hover:text-white p-2 transition"
         >
             <i className="fas fa-times"></i>
         </button>
 
         <div className="flex items-start space-x-4 pr-6">
-            <div className="w-12 h-12 flex-shrink-0 bg-gray-800 rounded-lg overflow-hidden border border-gray-600">
+            <div className="w-14 h-14 flex-shrink-0 bg-gray-800 rounded-xl overflow-hidden border border-gray-600 shadow-md">
                 <img src={logo} alt="Logo" className="w-full h-full object-cover" />
             </div>
-            <div>
-                <h3 className="font-bold text-white text-sm mb-1">Zainstaluj aplikację</h3>
+            <div className="flex-grow">
+                <h3 className="font-bold text-white text-base mb-1">Zainstaluj Bear Gym</h3>
                 
                 {isIOS ? (
-                    <div className="text-gray-400 text-xs leading-relaxed">
-                        Aby zainstalować <strong>Bear Gym</strong> na iPhone:<br/>
-                        1. Kliknij przycisk <span className="text-blue-400 font-bold">Udostępnij</span> <i className="fas fa-share-from-square mx-1"></i><br/>
-                        2. Wybierz <span className="text-white font-bold">Do ekranu początkowego</span> <i className="fas fa-plus-square mx-1"></i>
+                    <div className="text-gray-300 text-xs leading-relaxed space-y-2">
+                        <p>Aby dodać aplikację do ekranu początkowego:</p>
+                        <div className="flex items-center space-x-2">
+                            <span className="w-5 h-5 bg-gray-700 rounded flex items-center justify-center text-blue-400"><i className="fas fa-share-from-square"></i></span>
+                            <span>1. Kliknij <strong>Udostępnij</strong> na pasku.</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                             <span className="w-5 h-5 bg-gray-700 rounded flex items-center justify-center text-white"><i className="fas fa-plus-square"></i></span>
+                            <span>2. Wybierz <strong>Do ekranu początkowego</strong>.</span>
+                        </div>
                     </div>
                 ) : (
                     <div className="text-gray-400 text-xs mb-3">
-                        Dodaj aplikację do ekranu głównego, aby mieć szybszy dostęp i tryb pełnoekranowy.
+                        Zainstaluj aplikację, aby korzystać z niej w trybie pełnoekranowym i mieć szybszy dostęp.
                     </div>
                 )}
 
                 {!isIOS && (
                     <button 
                         onClick={handleInstallClick}
-                        className="mt-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-xs font-bold transition w-full"
+                        className="mt-3 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-xs font-black transition w-full shadow-lg tracking-wide uppercase"
                     >
-                        ZAINSTALUJ
+                        Zainstaluj teraz
                     </button>
                 )}
             </div>

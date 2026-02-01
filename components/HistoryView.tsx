@@ -1,7 +1,7 @@
 
 import React, { useContext, useState, useRef } from 'react';
 import { AppContext } from '../App';
-import { storage } from '../services/storage';
+import { storage, parseDateStr } from '../services/storage';
 import { WorkoutHistoryEntry } from '../types';
 
 export default function HistoryView() {
@@ -73,11 +73,18 @@ export default function HistoryView() {
 
     if(!window.confirm("Czy na pewno chcesz usunąć ten trening z historii?")) return;
     
+    // Pobierz surową historię
     const history = storage.getHistory(wId);
-    const newHistory = history.filter((_, i) => i !== index);
+    // Posortuj tak, jak widzi to użytkownik (po dacie string)
+    const sortedHistory = [...history].sort((a: any, b: any) => parseDateStr(b.date) - parseDateStr(a.date));
     
-    storage.saveHistory(wId, newHistory);
+    // Usuń element z posortowanej tablicy
+    sortedHistory.splice(index, 1);
+    
+    // Zapisz nową tablicę (kolejność w storage zostanie zaktualizowana do posortowanej)
+    storage.saveHistory(wId, sortedHistory);
     await syncData('history', null);
+    
     setOptionsSession(null);
     setRefreshTrigger(prev => prev + 1);
   };
@@ -93,10 +100,16 @@ export default function HistoryView() {
   };
 
   const saveDate = async (workoutId: string, index: number) => {
+    // Pobierz i posortuj, aby trafić w dobry indeks
     const history = storage.getHistory(workoutId);
-    if(history[index]) {
-        history[index].date = editDateValue;
-        storage.saveHistory(workoutId, history);
+    const sortedHistory = [...history].sort((a: any, b: any) => parseDateStr(b.date) - parseDateStr(a.date));
+    
+    if(sortedHistory[index]) {
+        sortedHistory[index].date = editDateValue;
+        // Aktualizacja timestampu, aby sortowanie działało poprawnie w przyszłości
+        sortedHistory[index].timestamp = parseDateStr(editDateValue);
+        
+        storage.saveHistory(workoutId, sortedHistory);
         await syncData('history', null);
     }
     setEditingDateId(null);
@@ -117,12 +130,14 @@ export default function HistoryView() {
     const history = storage.getHistory(manualForm.workoutId);
     const newEntry: WorkoutHistoryEntry = {
         date: formattedDate,
-        timestamp: d.getTime(),
+        timestamp: d.getTime(), // Timestamp z inputa
         results: manualForm.results
     };
 
-    history.unshift(newEntry);
-    history.sort((a,b) => b.timestamp - a.timestamp);
+    history.push(newEntry);
+    
+    // Sortujemy malejąco (najnowsze na górze) przy użyciu parsera stringów dla pewności
+    history.sort((a: any, b: any) => parseDateStr(b.date) - parseDateStr(a.date));
 
     storage.saveHistory(manualForm.workoutId, history);
     await syncData('history', null);
@@ -154,7 +169,8 @@ export default function HistoryView() {
       {workoutIds.length === 0 && <p className="text-center text-gray-500">Brak planów treningowych.</p>}
 
       {workoutIds.map(wId => {
-        const history: WorkoutHistoryEntry[] = storage.getHistory(wId);
+        // SORTOWANIE: Najnowsze na górze (b - a) używając parsera daty
+        const history: WorkoutHistoryEntry[] = storage.getHistory(wId).sort((a: any, b: any) => parseDateStr(b.date) - parseDateStr(a.date));
         const planData = workouts[wId];
         
         if (history.length === 0) return null;

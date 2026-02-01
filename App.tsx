@@ -48,7 +48,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col relative bg-[#121212] text-[#e0e0e0] font-sans">
-      <header className="p-4 flex justify-between items-center border-b border-gray-700 bg-neutral-900 sticky top-0 z-40 shadow-md h-16">
+      {/* HEADER FIXED - Zmiana na fixed, aby klawiatura go nie wypychała */}
+      <header className="fixed top-0 left-0 right-0 max-w-md mx-auto p-4 flex justify-between items-center border-b border-gray-700 bg-neutral-900 z-50 shadow-md h-16">
         <div className="flex items-center space-x-3 overflow-hidden">
           <div className="w-10 h-10 rounded-full overflow-hidden border border-red-600 bg-gray-800 shrink-0 shadow-lg">
              <img 
@@ -67,7 +68,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
 
         {isWorkout && restTimer.timeLeft !== null && (
-          <div className="absolute left-1/2 transform -translate-x-1/2 flex flex-col items-center animate-pulse" onClick={stopRestTimer}>
+          <div className="absolute left-1/2 transform -translate-x-1/2 flex flex-col items-center animate-pulse cursor-pointer" onClick={stopRestTimer}>
              <span className="text-[8px] font-bold text-gray-500 uppercase">PRZERWA</span>
              <span className="text-xl font-black text-red-500 font-mono leading-none">{restTimer.timeLeft}s</span>
           </div>
@@ -93,7 +94,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         )}
       </header>
 
-      <div className="p-3 space-y-4 flex-grow pb-24">
+      {/* Padding top dodany, aby treść nie chowała się pod fixed header */}
+      <div className="p-3 space-y-4 flex-grow pb-24 pt-20">
         {children}
       </div>
       
@@ -168,16 +170,59 @@ export default function App() {
     let ctx = audioCtx || new CtxClass();
     if (!audioCtx) setAudioCtx(ctx);
     if (ctx.state === 'suspended') ctx.resume();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+    
     const now = ctx.currentTime;
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(600, now);
-    osc.start();
-    osc.stop(now + 0.5);
-    gain.gain.setValueAtTime(settings.volume, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-    osc.connect(gain).connect(ctx.destination);
+    const gain = ctx.createGain();
+    const vol = settings.volume;
+    
+    gain.connect(ctx.destination);
+
+    if (settings.soundType === 'beep1') {
+        // --- 1. SINGLE BEEP (Klasyczny) ---
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1000, now);
+        osc.connect(gain);
+        
+        osc.start(now);
+        osc.stop(now + 0.3); // Krótki, pojedynczy beep
+        
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        
+    } else if (settings.soundType === 'beep2') {
+        // --- 2. DOUBLE BEEP (Beep-Beep) ---
+        const osc = ctx.createOscillator();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(800, now);
+        osc.connect(gain);
+        
+        osc.start(now);
+        osc.stop(now + 0.35);
+
+        // Modulacja głośności, aby zrobić przerwę w środku
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.setValueAtTime(vol, now + 0.1);
+        gain.gain.linearRampToValueAtTime(0, now + 0.12); // Wyciszenie
+        gain.gain.setValueAtTime(0, now + 0.22); // Cisza
+        gain.gain.linearRampToValueAtTime(vol, now + 0.24); // Powrót głośności
+        gain.gain.setValueAtTime(vol, now + 0.32);
+        gain.gain.linearRampToValueAtTime(0, now + 0.35);
+        
+    } else {
+        // --- 3. INNY DŹWIĘK (Opadający ton / Game Over) ---
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(200, now + 0.5); // Opadanie tonu
+        osc.connect(gain);
+        
+        osc.start(now);
+        osc.stop(now + 0.5);
+        
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.5);
+    }
   }, [audioCtx, settings]);
 
   const startRestTimer = (duration: number) => {

@@ -136,17 +136,38 @@ export default function SettingsView() {
         <h3 className="text-sm font-black text-white mb-4 flex items-center uppercase italic">
           <i className="fas fa-magic text-red-500 mr-2"></i>Automatyzacja
         </h3>
-        <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800">
-            <div>
-              <div className="text-[11px] font-black text-white uppercase italic tracking-widest">Automatyczna przerwa</div>
-              <div className="text-[9px] text-gray-500 font-bold uppercase">Stoper po odhaczeniu serii</div>
+        <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800">
+                <div>
+                <div className="text-[11px] font-black text-white uppercase italic tracking-widest">Automatyczna przerwa</div>
+                <div className="text-[9px] text-gray-500 font-bold uppercase">Stoper po odhaczeniu serii</div>
+                </div>
+                <button 
+                onClick={() => updateSettings({ ...settings, autoRestTimer: !settings.autoRestTimer })}
+                className={`w-12 h-6 rounded-full transition-all relative shadow-inner ${settings.autoRestTimer ? 'bg-red-600' : 'bg-gray-700'}`}
+                >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.autoRestTimer ? 'left-7' : 'left-1'}`}></div>
+                </button>
             </div>
-            <button 
-              onClick={() => updateSettings({ ...settings, autoRestTimer: !settings.autoRestTimer })}
-              className={`w-12 h-6 rounded-full transition-all relative shadow-inner ${settings.autoRestTimer ? 'bg-red-600' : 'bg-gray-700'}`}
-            >
-              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.autoRestTimer ? 'left-7' : 'left-1'}`}></div>
-            </button>
+
+            <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800">
+               <div>
+                 <div className="text-[11px] font-black text-white uppercase italic tracking-widest">Dźwięk Timera</div>
+                 <div className="text-[9px] text-gray-500 font-bold uppercase">Rodzaj sygnału</div>
+               </div>
+               <select 
+                 value={settings.soundType} 
+                 onChange={(e) => {
+                     updateSettings({ ...settings, soundType: e.target.value as any });
+                     setTimeout(() => playAlarm(), 100);
+                 }}
+                 className="bg-black text-white text-[10px] font-bold p-2 rounded border border-gray-700 outline-none uppercase"
+               >
+                 <option value="beep1">1 Beep</option>
+                 <option value="beep2">2 Beep-Beep</option>
+                 <option value="beep3">Inny (Koniec)</option>
+               </select>
+            </div>
         </div>
       </div>
 

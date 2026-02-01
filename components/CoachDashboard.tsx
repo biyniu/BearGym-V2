@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { remoteStorage } from '../services/storage';
+import { remoteStorage, parseDateStr } from '../services/storage';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Exercise, ExerciseType, WorkoutPlan } from '../types';
 
@@ -122,27 +122,30 @@ export default function CoachDashboard() {
     const history = selectedClient.history[workoutId];
     if (!Array.isArray(history) || history.length < 2) return [];
 
-    return history.slice().reverse().map((entry: any) => {
-      const resultStr = entry.results?.[exerciseId];
-      if (!resultStr) return null;
-      const matches = resultStr.matchAll(/(\d+(?:[.,]\d+)?)\s*kg/gi);
-      let maxWeight = 0;
-      let found = false;
-      for (const match of matches) {
-        const weightVal = parseFloat(match[1].replace(',', '.'));
-        if (!isNaN(weightVal)) {
-          if (weightVal > maxWeight) maxWeight = weightVal;
-          found = true;
+    // Sortujemy po dacie chronologicznie (od najstarszego do najnowszego)
+    return history.slice()
+      .sort((a: any, b: any) => parseDateStr(a.date) - parseDateStr(b.date))
+      .map((entry: any) => {
+        const resultStr = entry.results?.[exerciseId];
+        if (!resultStr) return null;
+        const matches = resultStr.matchAll(/(\d+(?:[.,]\d+)?)\s*kg/gi);
+        let maxWeight = 0;
+        let found = false;
+        for (const match of matches) {
+          const weightVal = parseFloat(match[1].replace(',', '.'));
+          if (!isNaN(weightVal)) {
+            if (weightVal > maxWeight) maxWeight = weightVal;
+            found = true;
+          }
         }
-      }
-      if (!found) return null;
-      
-      const datePart = entry.date.split(/[ ,]/)[0];
-      return {
-        date: datePart.slice(0, 5),
-        weight: maxWeight
-      };
-    }).filter(Boolean);
+        if (!found) return null;
+        
+        const datePart = entry.date.split(/[ ,]/)[0];
+        return {
+          date: datePart.slice(0, 5),
+          weight: maxWeight
+        };
+      }).filter(Boolean);
   };
 
   const convertedJsonOutput = useMemo(() => {
@@ -470,13 +473,16 @@ export default function CoachDashboard() {
                 {selectedClient.history && Object.entries(selectedClient.history).map(([id, sessions]: any) => {
                   if (!Array.isArray(sessions)) return null;
                   const planName = selectedClient.plan?.[id]?.title || id;
+                  // Sortowanie historii malejąco (najnowsze na górze) PO PARSOWANIU STRINGA
+                  const sortedSessions = sessions.slice().sort((a: any, b: any) => parseDateStr(b.date) - parseDateStr(a.date));
+
                   return (
                     <div key={id} className="bg-[#161616] rounded-3xl border border-gray-800 overflow-hidden shadow-xl">
                       <div className="p-6 border-b border-gray-800 bg-black/20">
                         <h3 className="text-white font-black italic uppercase tracking-tighter text-lg">{planName}</h3>
                       </div>
                       <div className="divide-y divide-gray-800">
-                        {sessions.map((s: any, idx: number) => (
+                        {sortedSessions.map((s: any, idx: number) => (
                           <div key={idx} className="p-6">
                             <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-2">
                               <span className="text-blue-400 font-black text-sm uppercase tracking-tighter flex items-center">
@@ -502,7 +508,7 @@ export default function CoachDashboard() {
                 })}
               </div>
             )}
-
+{/* ... Reszta (calendar, extras, json) pozostaje bez zmian ... */}
             {activeTab === 'calendar' && (
               <div className="animate-fade-in flex justify-center">
                 <div className="w-full max-w-md">
@@ -586,7 +592,7 @@ export default function CoachDashboard() {
                 </div>
               </div>
             )}
-
+{/* ... Reszta (extras, json) bez zmian ... */}
             {activeTab === 'extras' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
                 <div className="bg-[#161616] p-8 rounded-3xl border border-gray-800 shadow-xl">

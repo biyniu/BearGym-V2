@@ -43,7 +43,7 @@ export interface WorkoutHistoryEntry {
 
 export interface AppSettings {
   volume: number;
-  soundType: 'beep1' | 'beep2' | 'beep3';
+  soundType: 'beep1' | 'beep2' | 'beep3' | 'beep4';
   autoRestTimer: boolean;
 }
 

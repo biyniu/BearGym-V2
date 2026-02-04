@@ -98,8 +98,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <div className="p-3 space-y-4 flex-grow pb-24 pt-20">
         {children}
       </div>
-      
-      <InstallPrompt />
 
       {isHome && (
         <div className="fixed bottom-6 right-6 z-50 animate-bounce-slow">
@@ -164,6 +162,25 @@ export default function App() {
     setWorkoutStartTimeState(t);
   };
 
+  const playSoundNote = (ctx: AudioContext, freq: number, startTime: number, vol: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startTime);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(startTime);
+      osc.stop(startTime + 1.2);
+      
+      // Envelope
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(vol, startTime + 0.05); // Attack
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 1.0); // Decay
+  };
+
   const playAlarm = useCallback(() => {
     const CtxClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!CtxClass) return;
@@ -172,56 +189,39 @@ export default function App() {
     if (ctx.state === 'suspended') ctx.resume();
     
     const now = ctx.currentTime;
-    const gain = ctx.createGain();
-    const vol = settings.volume;
+    const vol = settings.volume !== undefined ? settings.volume : 0.5;
     
-    gain.connect(ctx.destination);
-
     if (settings.soundType === 'beep1') {
-        // --- 1. SINGLE BEEP (Klasyczny) ---
-        const osc = ctx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(1000, now);
-        osc.connect(gain);
+        // --- 1. SOFT BELL (Sine Wave, C5) ---
+        playSoundNote(ctx, 523.25, now, vol);
         
-        osc.start(now);
-        osc.stop(now + 0.3); // Krótki, pojedynczy beep
-        
-        gain.gain.setValueAtTime(vol, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-        
-    } else if (settings.soundType === 'beep2') {
-        // --- 2. DOUBLE BEEP (Beep-Beep) ---
-        const osc = ctx.createOscillator();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(800, now);
-        osc.connect(gain);
-        
-        osc.start(now);
-        osc.stop(now + 0.35);
+    } else if (settings.soundType === 'beep4') {
+        // --- 4. DOUBLE SOFT BELL (Sine, C5 + C5) ---
+        playSoundNote(ctx, 523.25, now, vol);
+        playSoundNote(ctx, 523.25, now + 0.25, vol);
 
-        // Modulacja głośności, aby zrobić przerwę w środku
-        gain.gain.setValueAtTime(vol, now);
-        gain.gain.setValueAtTime(vol, now + 0.1);
-        gain.gain.linearRampToValueAtTime(0, now + 0.12); // Wyciszenie
-        gain.gain.setValueAtTime(0, now + 0.22); // Cisza
-        gain.gain.linearRampToValueAtTime(vol, now + 0.24); // Powrót głośności
-        gain.gain.setValueAtTime(vol, now + 0.32);
-        gain.gain.linearRampToValueAtTime(0, now + 0.35);
+    } else if (settings.soundType === 'beep2') {
+        // --- 2. SUCCESS CHORD (Major Triad: C5, E5, G5) ---
+        playSoundNote(ctx, 523.25, now, vol * 0.4);
+        playSoundNote(ctx, 659.25, now + 0.05, vol * 0.4);
+        playSoundNote(ctx, 783.99, now + 0.1, vol * 0.4);
         
     } else {
-        // --- 3. INNY DŹWIĘK (Opadający ton / Game Over) ---
+        // --- 3. LOW GONG (Low freq sine) ---
         const osc = ctx.createOscillator();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(600, now);
-        osc.frequency.exponentialRampToValueAtTime(200, now + 0.5); // Opadanie tonu
+        const gain = ctx.createGain();
+        osc.type = 'sine'; // Sine is softer than triangle
+        osc.frequency.setValueAtTime(150, now);
+        
         osc.connect(gain);
+        gain.connect(ctx.destination);
         
         osc.start(now);
-        osc.stop(now + 0.5);
+        osc.stop(now + 1.5);
         
-        gain.gain.setValueAtTime(vol, now);
-        gain.gain.linearRampToValueAtTime(0, now + 0.5);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(vol, now + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
     }
   }, [audioCtx, settings]);
 
@@ -343,6 +343,9 @@ export default function App() {
       clientCode, clientName, workouts, settings, updateSettings, updateWorkouts, logo, updateLogo, playAlarm, syncData,
       workoutStartTime, setWorkoutStartTime, restTimer, startRestTimer, stopRestTimer
     }}>
+      {/* InstallPrompt tutaj, aby był widoczny globalnie, nawet nad AuthView */}
+      <InstallPrompt />
+      
       <HashRouter>
         <ClientRouteGuard 
           clientCode={clientCode} 

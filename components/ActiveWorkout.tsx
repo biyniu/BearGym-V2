@@ -93,7 +93,10 @@ export default function ActiveWorkout() {
             if (time && time !== '0') summaryParts.push(`${time}s`);
         }
       }
+      
+      // Notatka: Używamy tymczasowej (obecna sesja)
       const note = storage.getTempInput(`note_${id}_${ex.id}`);
+      
       if(summaryParts.length > 0) {
         let resStr = summaryParts.join(' | ');
         if(note) resStr += ` [Note: ${note}]`;
@@ -119,6 +122,8 @@ export default function ActiveWorkout() {
     
     storage.saveHistory(id, history);
     await syncData('history', history);
+    
+    // Czyścimy tylko tymczasowe inputy, sticky notes zostają w storage
     storage.clearTempInputs(id, workoutData.exercises);
     setWorkoutStartTime(null);
     stopRestTimer();
@@ -130,6 +135,7 @@ export default function ActiveWorkout() {
         stopRestTimer();
         setWorkoutStartTime(null);
         sessionStorage.removeItem('workout_start_time');
+        // Tutaj również czyścimy tylko tymczasowe, sticky notes nie są usuwane
         storage.clearTempInputs(id, workoutData.exercises);
         navigate('/', { replace: true });
     }
@@ -220,7 +226,13 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index }: { exercise: Exe
     return history[0].results[exercise.id] || '';
   }, [history, exercise.id]);
 
-  const [note, setNote] = useState(storage.getTempInput(`note_${workoutId}_${exercise.id}`));
+  // Stan notatki: najpierw sprawdź tymczasową, jeśli pusta - sprawdź trwałą (Sticky Note)
+  const [note, setNote] = useState(() => {
+    const temp = storage.getTempInput(`note_${workoutId}_${exercise.id}`);
+    if (temp) return temp;
+    return storage.getStickyNote(workoutId, exercise.id);
+  });
+
   const [completedSets, setCompletedSets] = useState<Record<number, boolean>>(() => {
     const saved = localStorage.getItem(`completed_${workoutId}_${exercise.id}`);
     return saved ? JSON.parse(saved) : {};
@@ -231,7 +243,6 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index }: { exercise: Exe
   useEffect(() => {
     const newValues: Record<string, string> = {};
     const kgMatches = Array.from(lastResult.matchAll(/(\d+(?:[.,]\d+)?)\s*kg/gi));
-    // ZMIANA: Nie pobieramy powtórzeń (repsMatches) do inputów
     
     for(let i=1; i<=exercise.sets; i++) {
       const uidKg = `input_${workoutId}_${exercise.id}_s${i}_kg`;
@@ -257,6 +268,15 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index }: { exercise: Exe
   const handleInputChange = (uid: string, value: string) => {
     storage.saveTempInput(uid, value);
     setInputValues(prev => ({ ...prev, [uid]: value }));
+  };
+  
+  const handleNoteChange = (val: string) => {
+      setNote(val);
+      // Zapisujemy w obu miejscach:
+      // 1. Temp (dla bieżącej sesji treningowej i logu)
+      storage.saveTempInput(`note_${workoutId}_${exercise.id}`, val);
+      // 2. Sticky (trwałe, do wczytania przy następnym razie)
+      storage.saveStickyNote(workoutId, exercise.id, val);
   };
 
   const toggleSet = (sNum: number) => {
@@ -347,9 +367,9 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index }: { exercise: Exe
       </div>
       <textarea 
         value={note}
-        onChange={(e) => { setNote(e.target.value); storage.saveTempInput(`note_${workoutId}_${exercise.id}`, e.target.value); }}
-        className="w-full mt-3 bg-[#2d2d2d] text-gray-300 text-xs p-2 rounded border border-gray-700 focus:border-red-500 outline-none" 
-        placeholder="Notatki do ćwiczenia..." 
+        onChange={(e) => handleNoteChange(e.target.value)}
+        className="w-full mt-3 bg-[#2d2d2d] text-gray-300 text-xs p-2 rounded border border-gray-700 focus:border-red-500 outline-none transition-colors" 
+        placeholder="Stała notatka (zapisuje się na przyszłość)..." 
         rows={1} 
       />
     </div>

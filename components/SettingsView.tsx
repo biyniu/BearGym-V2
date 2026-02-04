@@ -150,24 +150,53 @@ export default function SettingsView() {
                 </button>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800">
-               <div>
-                 <div className="text-[11px] font-black text-white uppercase italic tracking-widest">Dźwięk Timera</div>
-                 <div className="text-[9px] text-gray-500 font-bold uppercase">Rodzaj sygnału</div>
+            <div className="p-3 bg-gray-900 rounded-xl border border-gray-800">
+               <div className="flex items-center justify-between mb-2">
+                 <div>
+                    <div className="text-[11px] font-black text-white uppercase italic tracking-widest">Dźwięk Timera</div>
+                    <div className="text-[9px] text-gray-500 font-bold uppercase">Głośność i rodzaj</div>
+                 </div>
+                 <select 
+                   value={settings.soundType} 
+                   onChange={(e) => {
+                       updateSettings({ ...settings, soundType: e.target.value as any });
+                       setTimeout(() => playAlarm(), 100);
+                   }}
+                   className="bg-black text-white text-[10px] font-bold p-2 rounded border border-gray-700 outline-none uppercase"
+                 >
+                   <option value="beep1">Soft Bell</option>
+                   <option value="beep4">Double Bell</option>
+                   <option value="beep2">Success</option>
+                   <option value="beep3">Gong</option>
+                 </select>
                </div>
-               <select 
-                 value={settings.soundType} 
-                 onChange={(e) => {
-                     updateSettings({ ...settings, soundType: e.target.value as any });
-                     setTimeout(() => playAlarm(), 100);
-                 }}
-                 className="bg-black text-white text-[10px] font-bold p-2 rounded border border-gray-700 outline-none uppercase"
-               >
-                 <option value="beep1">1 Beep</option>
-                 <option value="beep2">2 Beep-Beep</option>
-                 <option value="beep3">Inny (Koniec)</option>
-               </select>
+               
+               {/* Volume Slider */}
+               <div className="flex items-center space-x-3 mt-2">
+                   <i className="fas fa-volume-down text-gray-500 text-xs"></i>
+                   <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.1" 
+                    value={settings.volume !== undefined ? settings.volume : 0.5} 
+                    onChange={(e) => {
+                        updateSettings({ ...settings, volume: parseFloat(e.target.value) });
+                    }}
+                    onMouseUp={() => playAlarm()}
+                    onTouchEnd={() => playAlarm()}
+                    className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-red-600"
+                   />
+                   <i className="fas fa-volume-up text-gray-500 text-xs"></i>
+               </div>
             </div>
+
+            <button 
+                onClick={() => alert("Ustawienia zostały zapisane!")}
+                className="w-full bg-green-700 hover:bg-green-600 text-white font-bold py-3 rounded-xl uppercase text-xs tracking-widest shadow-lg mt-2"
+            >
+                Zapisz Ustawienia
+            </button>
         </div>
       </div>
 

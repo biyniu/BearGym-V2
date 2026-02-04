@@ -79,10 +79,15 @@ export const storage = {
   saveMeasurements: (m: any[]) => localStorage.setItem(`${CLIENT_CONFIG.storageKey}_measurements`, JSON.stringify(m)),
   getTempInput: (id: string) => localStorage.getItem(`${CLIENT_CONFIG.storageKey}_temp_${id}`) || '',
   saveTempInput: (id: string, v: string) => localStorage.setItem(`${CLIENT_CONFIG.storageKey}_temp_${id}`, v),
+  
+  // Sticky Notes (Trwałe notatki - zostają na zawsze, dopóki user ich nie zmieni)
+  getStickyNote: (wId: string, exId: string) => localStorage.getItem(`${CLIENT_CONFIG.storageKey}_sticky_${wId}_${exId}`) || '',
+  saveStickyNote: (wId: string, exId: string, v: string) => localStorage.setItem(`${CLIENT_CONFIG.storageKey}_sticky_${wId}_${exId}`, v),
+
   clearTempInputs: (workoutId: string, exercises: any[]) => {
     exercises.forEach(ex => {
+      // UWAGA: Usuwamy tymczasowe notatki sesji, ale sticky notes zostają w osobnych kluczach
       localStorage.removeItem(`${CLIENT_CONFIG.storageKey}_temp_note_${workoutId}_${ex.id}`);
-      // ZMIANA: Usuwamy również stan ukończenia (ptaszki)
       localStorage.removeItem(`completed_${workoutId}_${ex.id}`);
       
       for(let i=1; i<=ex.sets; i++) {

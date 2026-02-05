@@ -578,7 +578,7 @@ export default function CoachDashboard() {
             
             {/* --- CALENDAR TAB (FIXED) --- */}
             {activeTab === 'calendar' && (
-              <div className="animate-fade-in max-w-4xl mx-auto">
+              <div className="animate-fade-in max-w-2xl mx-auto">
                  <CoachCalendarWidget client={selectedClient} />
               </div>
             )}
@@ -615,7 +615,13 @@ export default function CoachDashboard() {
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <LineChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
                                                         <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
-                                                        <XAxis dataKey="date" stroke="#555" tick={{fill: '#666', fontSize: 9}} tickMargin={5} />
+                                                        <XAxis 
+                                                            dataKey="date" 
+                                                            stroke="#555" 
+                                                            tick={{fill: '#666', fontSize: 9}} 
+                                                            tickMargin={5} 
+                                                            padding={{ left: 20, right: 20 }}
+                                                        />
                                                         <YAxis hide={true} domain={[domainMin, domainMax]} />
                                                         <Tooltip 
                                                             contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: '8px', fontSize: '10px' }} 
@@ -900,8 +906,8 @@ function CoachCalendarWidget({ client }: { client: any }) {
   const clientLogo = 'https://lh3.googleusercontent.com/u/0/d/1GZ-QR4EyK6Ho9czlpTocORhwiHW4FGnP';
 
   return (
-    <div className="bg-[#161616] rounded-3xl border border-gray-800 p-5 shadow-2xl relative overflow-hidden">
-      <div className="flex justify-between items-center mb-4 border-b border-gray-800 pb-3">
+    <div className="bg-[#161616] rounded-3xl border border-gray-800 p-4 shadow-2xl relative overflow-hidden">
+      <div className="flex justify-between items-center mb-3 border-b border-gray-800 pb-3">
         <h3 className="text-white font-black italic uppercase tracking-tighter text-sm flex items-center">
           <i className="fas fa-calendar-alt mr-2 text-blue-500"></i>
           KALENDARZ

@@ -38,7 +38,7 @@ export const remoteStorage = {
     }
   },
 
-  // NOWE: Metody dla Panelu Trenera
+  // Metody dla Panelu Trenera
   fetchCoachOverview: async (masterCode: string) => {
     try {
       const url = `${CLIENT_CONFIG.googleAppScriptUrl}?code=${encodeURIComponent(masterCode)}&type=coach_overview`;
@@ -66,24 +66,28 @@ export const remoteStorage = {
         }
       };
       
-      const response = await fetch(CLIENT_CONFIG.googleAppScriptUrl, {
+      // UWAGA: Przy mode 'no-cors' nie ustawiamy Content-Type na application/json, 
+      // bo to wymusza preflight (OPTIONS), którego GAS często nie lubi.
+      // Wysyłamy jako text/plain (domyślnie), a GAS i tak sparsuje JSON.parse(e.postData.contents).
+      await fetch(CLIENT_CONFIG.googleAppScriptUrl, {
         method: 'POST',
         mode: 'no-cors', 
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      // W trybie no-cors nie odczytamy body, ale zakładamy sukces jeśli nie rzuci błędem sieci
       return true;
-    } catch (e) { return false; }
+    } catch (e) { 
+      console.error(e);
+      return false; 
+    }
   },
 
   saveToCloud: async (code: string, type: string, data: any) => {
     try {
+      const payload = { code: code.toUpperCase(), type, data };
       await fetch(CLIENT_CONFIG.googleAppScriptUrl, {
         method: 'POST',
         mode: 'no-cors', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: code.toUpperCase(), type, data })
+        body: JSON.stringify(payload)
       });
       return true;
     } catch (e) { return false; }

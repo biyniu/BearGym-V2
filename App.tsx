@@ -286,11 +286,13 @@ export default function App() {
     }
 
     // 2. Wibracja (Android)
-    // Sprawdzamy, czy funkcja istnieje i czy wibracja jest włączona w aktualnych ustawieniach
-    if (currentSettings.vibration && typeof navigator.vibrate === 'function') {
-        // Podwójna, długa wibracja: 500ms wibracji, 200ms przerwy, 500ms wibracji
+    // UWAGA: Używamy window.navigator.vibrate dla pewności.
+    // Zamiast tablicy (pattern), używamy pojedynczej liczby (duration).
+    // Wiele Androidów ignoruje patterny w PWA bez bezpośredniej interakcji, ale puszcza pojedynczy sygnał.
+    if (currentSettings.vibration && typeof window.navigator.vibrate === 'function') {
         try {
-            navigator.vibrate([500, 200, 500]);
+            // Wymuszamy pojedynczą, solidną wibrację przez 1000ms (1 sekunda)
+            window.navigator.vibrate(1000); 
         } catch (e) {
             console.error("Vibration failed", e);
         }

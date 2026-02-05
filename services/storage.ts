@@ -68,7 +68,6 @@ export const remoteStorage = {
       
       // UWAGA: Przy mode 'no-cors' nie ustawiamy Content-Type na application/json, 
       // bo to wymusza preflight (OPTIONS), którego GAS często nie lubi.
-      // Wysyłamy jako text/plain (domyślnie), a GAS i tak sparsuje JSON.parse(e.postData.contents).
       await fetch(CLIENT_CONFIG.googleAppScriptUrl, {
         method: 'POST',
         mode: 'no-cors', 

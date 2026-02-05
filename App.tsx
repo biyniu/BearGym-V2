@@ -11,6 +11,7 @@ import CardioView from './components/CardioView';
 import AuthView from './components/AuthView';
 import CoachDashboard from './components/CoachDashboard';
 import InstallPrompt from './components/InstallPrompt';
+import AICoachWidget from './components/AICoachWidget';
 import { localStorageCache, remoteStorage, storage } from './services/storage';
 import { WorkoutsMap, AppSettings } from './types';
 import { CLIENT_CONFIG, DEFAULT_SETTINGS } from './constants';
@@ -98,6 +99,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <div className="p-3 space-y-4 flex-grow pb-24 pt-20">
         {children}
       </div>
+
+      {/* Asystent AI - dostępny zawsze */}
+      {clientCode && <AICoachWidget />}
 
       {isHome && (
         <div className="fixed bottom-6 right-6 z-50 animate-bounce-slow">

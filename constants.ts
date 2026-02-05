@@ -4,8 +4,10 @@ export const CLIENT_CONFIG = {
   // PAMIĘTAJ: Wklej tutaj URL swojego wdrożenia z Google Apps Script!
   googleAppScriptUrl: "https://script.google.com/macros/s/AKfycbz2bM5DeepxbEAwMcMHAbJEJZ6O24OJpAuHFqp6PaEijn9N2BqdKUoUY-qJJk6E4u6i/exec",
   storageKey: 'bear_gym_cloud_v1',
-  // Tutaj wklej swój klucz API z https://aistudio.google.com/app/apikey
-  geminiApiKey: "AIzaSyAebN9Y0LJVh1qTa0rLgKea2on708SvR64",
+  // Klucz API pobierany ze zmiennych środowiskowych (Vercel / .env)
+  // Nazwa musi zaczynać się od VITE_, aby była widoczna w aplikacji frontendowej
+  // Fix: Używamy ?. (optional chaining) aby zapobiec awarii, jeśli env jest undefined
+  geminiApiKey: (import.meta as any)?.env?.VITE_GEMINI_API_KEY || "",
   // Tutaj definiujemy wersję modelu. Jeśli wyjdzie nowsza (np. gemini-3.0), zmień to tutaj.
   geminiModel: "gemini-2.5-flash"
 };

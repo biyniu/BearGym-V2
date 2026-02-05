@@ -11,12 +11,8 @@ export default function CoachDashboard() {
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   
-  // Zaktualizowany typ zakładek - 'measurements' zamiast 'extras' i dodane 'cardio'
   const [activeTab, setActiveTab] = useState<'plan' | 'history' | 'measurements' | 'cardio' | 'progress' | 'calendar' | 'json'>('plan');
   
-  const [selectedProgressWorkout, setSelectedProgressWorkout] = useState<string>("");
-  
-  // Stan edycji planu
   const [isEditingPlan, setIsEditingPlan] = useState(false);
   const [editedPlan, setEditedPlan] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -50,9 +46,6 @@ export default function CoachDashboard() {
     if (res.success) {
       setSelectedClient(res);
       setEditedPlan(res.plan);
-      if (res.plan) {
-        setSelectedProgressWorkout(Object.keys(res.plan)[0] || "");
-      }
       setIsEditingPlan(false);
     }
     setLoading(false);
@@ -128,35 +121,54 @@ export default function CoachDashboard() {
     setEditedPlan(newPlan);
   };
 
-  const getExerciseChartData = (workoutId: string, exerciseId: string) => {
-    if (!selectedClient?.history) return [];
-    const history = selectedClient.history[workoutId];
-    if (!Array.isArray(history) || history.length < 2) return [];
+  // Bezpieczne pobieranie sesji
+  const mobilitySessions = useMemo(() => 
+    selectedClient?.extras?.cardio?.filter((c: any) => c.type === 'mobility') || [], 
+  [selectedClient]);
 
-    // Sortujemy po dacie chronologicznie (od najstarszego do najnowszego)
-    return history.slice()
-      .sort((a: any, b: any) => parseDateStr(a.date) - parseDateStr(b.date))
-      .map((entry: any) => {
-        const resultStr = entry.results?.[exerciseId];
-        if (!resultStr) return null;
-        const matches = resultStr.matchAll(/(\d+(?:[.,]\d+)?)\s*kg/gi);
-        let maxWeight = 0;
-        let found = false;
-        for (const match of matches) {
-          const weightVal = parseFloat(match[1].replace(',', '.'));
-          if (!isNaN(weightVal)) {
-            if (weightVal > maxWeight) maxWeight = weightVal;
-            found = true;
-          }
-        }
-        if (!found) return null;
+  const cardioSessions = useMemo(() => 
+    selectedClient?.extras?.cardio?.filter((c: any) => c.type !== 'mobility') || [], 
+  [selectedClient]);
+
+  const groupSessionsByWeek = (sessions: any[]) => {
+    if (!sessions || sessions.length === 0) return [];
+    
+    const groups: { [key: string]: any[] } = {};
+    sessions.forEach(session => {
+        if (!session.date) return;
+        const parts = session.date.split('-');
+        if (parts.length < 3) return;
+
+        const [y, m, d] = parts.map(Number);
+        const dateObj = new Date(y, m - 1, d, 12, 0, 0); 
+        const dayOfWeek = dateObj.getDay(); 
+        const dist = (dayOfWeek + 6) % 7;
+        dateObj.setDate(dateObj.getDate() - dist);
         
-        const datePart = entry.date.split(/[ ,]/)[0];
-        return {
-          date: datePart.slice(0, 5),
-          weight: maxWeight
-        };
-      }).filter(Boolean);
+        const monY = dateObj.getFullYear();
+        const monM = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+        const monD = dateObj.getDate().toString().padStart(2, '0');
+        const key = `${monY}-${monM}-${monD}`;
+        
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(session);
+    });
+    
+    return Object.entries(groups)
+        .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+        .map(([mondayDate, items]) => {
+            const [y, m, d] = mondayDate.split('-').map(Number);
+            const start = new Date(y, m - 1, d, 12, 0, 0);
+            const end = new Date(start);
+            end.setDate(end.getDate() + 6);
+            
+            const formatD = (dObj: Date) => `${dObj.getDate().toString().padStart(2,'0')}.${(dObj.getMonth()+1).toString().padStart(2,'0')}`;
+            
+            // Sortowanie itemów wewnątrz grupy od najnowszego
+            items.sort((a, b) => b.date.localeCompare(a.date));
+            
+            return { label: `${formatD(start)} - ${formatD(end)}`, items: items, count: items.length };
+        });
   };
 
   const convertedJsonOutput = useMemo(() => {
@@ -167,7 +179,7 @@ export default function CoachDashboard() {
     rows.forEach((row, idx) => {
       const cols = row.split('\t');
       if (cols.length < 3 || !cols[0]?.trim() || cols[0].toLowerCase().startsWith('plan')) return;
-
+      // ... (istniejąca logika konwersji) ...
       const planName = cols[0].trim();
       const section = cols[1]?.trim().toLowerCase() || "";
       const name = cols[2]?.trim() || "Ćwiczenie";
@@ -219,15 +231,6 @@ export default function CoachDashboard() {
 
     return JSON.stringify(result, null, 2);
   }, [excelInput]);
-
-  const CustomLabel = (props: any) => {
-    const { x, y, value } = props;
-    return (
-      <text x={x} y={y - 12} fill="#ffffff" textAnchor="middle" fontSize={10} fontWeight="bold">
-        {value}kg
-      </text>
-    );
-  };
 
   if (!isAuthorized) {
     return (
@@ -303,6 +306,7 @@ export default function CoachDashboard() {
               </div>
             </div>
 
+            {/* --- PLAN TAB --- */}
             {activeTab === 'plan' && (
               <div className="space-y-8 animate-fade-in">
                 <div className="flex justify-between items-center bg-[#161616] p-4 rounded-2xl border border-gray-800">
@@ -480,6 +484,7 @@ export default function CoachDashboard() {
               </div>
             )}
 
+            {/* --- HISTORY TAB --- */}
             {activeTab === 'history' && (
               <div className="space-y-6 animate-fade-in">
                 {selectedClient.history && Object.entries(selectedClient.history).map(([id, sessions]: any) => {
@@ -520,8 +525,15 @@ export default function CoachDashboard() {
                 })}
               </div>
             )}
+            
+            {/* --- CALENDAR TAB (FIXED) --- */}
+            {activeTab === 'calendar' && (
+              <div className="animate-fade-in max-w-4xl mx-auto">
+                 <CoachCalendarWidget client={selectedClient} />
+              </div>
+            )}
 
-            {/* NOWA ZAKŁADKA CARDIO/MOBILITY */}
+            {/* --- CARDIO/MOBILITY TAB (GROUPED) --- */}
             {activeTab === 'cardio' && (
               <div className="animate-fade-in max-w-4xl mx-auto space-y-6">
                  {/* MOBILITY SECTION */}
@@ -535,20 +547,26 @@ export default function CoachDashboard() {
                          </div>
                          <h3 className="text-white font-black italic uppercase text-lg">Sesje Mobility</h3>
                     </div>
-                    <div className="space-y-3 relative z-10">
-                        {selectedClient.extras?.cardio?.filter((c: any) => c.type === 'mobility').length > 0 ? (
-                            selectedClient.extras.cardio
-                                .filter((c: any) => c.type === 'mobility')
-                                .slice()
-                                .sort((a: any, b: any) => b.date.localeCompare(a.date))
-                                .map((c: any) => (
-                                <div key={c.id} className="flex justify-between items-start p-4 bg-purple-900/10 rounded-2xl border border-purple-500/20 hover:bg-purple-900/20 transition">
-                                    <div>
-                                        <div className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-1">{c.date}</div>
-                                        {c.notes && <div className="text-xs text-gray-400 italic">"{c.notes}"</div>}
+                    <div className="space-y-6 relative z-10">
+                        {mobilitySessions.length > 0 ? (
+                            groupSessionsByWeek(mobilitySessions).map((group, idx) => (
+                                <div key={idx}>
+                                    <div className="flex items-center justify-between border-b border-purple-900/30 pb-1 mb-2">
+                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tydzień: <span className="text-purple-300 ml-1">{group.label}</span></span>
+                                        <span className="text-xs font-bold bg-purple-900/40 text-purple-300 px-2 py-0.5 rounded">{group.count} sesje</span>
                                     </div>
-                                    <div className="text-right">
-                                        <div className="text-sm font-black text-white italic uppercase tracking-tighter">{c.duration}</div>
+                                    <div className="space-y-2">
+                                        {group.items.map((c: any) => (
+                                            <div key={c.id} className="flex justify-between items-start p-3 bg-purple-900/10 rounded-xl border border-purple-500/10 hover:bg-purple-900/20 transition">
+                                                <div>
+                                                    <div className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-1">{c.date}</div>
+                                                    {c.notes && <div className="text-xs text-gray-400 italic">"{c.notes}"</div>}
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-sm font-black text-white italic uppercase tracking-tighter">{c.duration}</div>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             ))
@@ -569,30 +587,36 @@ export default function CoachDashboard() {
                          </div>
                          <h3 className="text-white font-black italic uppercase text-lg">Sesje Cardio</h3>
                     </div>
-                    <div className="space-y-3 relative z-10">
-                        {selectedClient.extras?.cardio?.filter((c: any) => c.type !== 'mobility').length > 0 ? (
-                            selectedClient.extras.cardio
-                                .filter((c: any) => c.type !== 'mobility')
-                                .slice()
-                                .sort((a: any, b: any) => b.date.localeCompare(a.date))
-                                .map((c: any) => {
-                                    const icon = cardioTypesMap[c.type] || 'fa-heartbeat';
-                                    return (
-                                        <div key={c.id} className="flex justify-between items-center p-4 bg-black/30 rounded-2xl border border-gray-800 hover:border-gray-700 transition">
-                                            <div className="flex items-center space-x-4">
-                                                <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-red-500 border border-gray-700">
-                                                    <i className={`fas ${icon}`}></i>
+                    <div className="space-y-6 relative z-10">
+                        {cardioSessions.length > 0 ? (
+                            groupSessionsByWeek(cardioSessions).map((group, idx) => (
+                                <div key={idx}>
+                                    <div className="flex items-center justify-between border-b border-red-900/30 pb-1 mb-2">
+                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tydzień: <span className="text-red-300 ml-1">{group.label}</span></span>
+                                        <span className="text-xs font-bold bg-red-900/40 text-red-300 px-2 py-0.5 rounded">{group.count} sesje</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {group.items.map((c: any) => {
+                                            const icon = cardioTypesMap[c.type] || 'fa-heartbeat';
+                                            return (
+                                                <div key={c.id} className="flex justify-between items-center p-3 bg-black/30 rounded-xl border border-gray-800 hover:border-gray-700 transition">
+                                                    <div className="flex items-center space-x-4">
+                                                        <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-red-500 border border-gray-700">
+                                                            <i className={`fas ${icon}`}></i>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-[10px] font-black text-red-500 uppercase tracking-widest">{c.type}</div>
+                                                            <div className="text-xs font-bold text-gray-400">{c.date}</div>
+                                                            {c.notes && <div className="text-[10px] text-gray-600 mt-0.5 max-w-[200px] truncate">{c.notes}</div>}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-sm font-black text-white italic uppercase tracking-tighter">{c.duration}</div>
                                                 </div>
-                                                <div>
-                                                    <div className="text-[10px] font-black text-red-500 uppercase tracking-widest">{c.type}</div>
-                                                    <div className="text-xs font-bold text-gray-400">{c.date}</div>
-                                                    {c.notes && <div className="text-[10px] text-gray-600 mt-0.5 max-w-[200px] truncate">{c.notes}</div>}
-                                                </div>
-                                            </div>
-                                            <div className="text-sm font-black text-white italic uppercase tracking-tighter">{c.duration}</div>
-                                        </div>
-                                    );
-                                })
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))
                         ) : (
                             <p className="text-gray-600 text-sm italic py-4">Brak zapisanych sesji cardio.</p>
                         )}
@@ -601,6 +625,7 @@ export default function CoachDashboard() {
               </div>
             )}
 
+            {/* --- MEASUREMENTS TAB --- */}
             {activeTab === 'measurements' && (
               <div className="max-w-3xl mx-auto animate-fade-in">
                 <div className="bg-[#161616] p-8 rounded-3xl border border-gray-800 shadow-xl">
@@ -705,7 +730,8 @@ function CoachCalendarWidget({ client }: { client: any }) {
     if (client.history) {
       Object.entries(client.history).forEach(([id, sessions]: any) => {
         if (!Array.isArray(sessions)) return;
-        sessions.forEach(h => {
+        sessions.forEach((h: any) => {
+          if (!h.date) return;
           const datePart = h.date.split(/[ ,(]/)[0].replace(/,/g, ''); 
           ensureDate(datePart);
           status[datePart].strength = true;
@@ -715,6 +741,7 @@ function CoachCalendarWidget({ client }: { client: any }) {
 
     if (client.extras?.cardio) {
       client.extras.cardio.forEach((c: any) => {
+        if (!c.date) return;
         const [y, m, d] = c.date.split('-');
         const datePart = `${d.toString().padStart(2, '0')}.${m.toString().padStart(2, '0')}.${y}`;
         ensureDate(datePart);
@@ -796,7 +823,6 @@ function CoachCalendarWidget({ client }: { client: any }) {
               if (hasCardio) activityLabel = "TR + CA";
               else if (hasMobility) activityLabel = "TR + MO";
               else activityLabel = "TRENING";
-              // Strength always keeps the image background logic, so bgClass stays default to allow image visibility
           } else if (hasCardio) {
               if (hasMobility) activityLabel = "CA + MO";
               else activityLabel = "CARDIO";

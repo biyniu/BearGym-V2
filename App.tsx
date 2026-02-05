@@ -143,6 +143,13 @@ export default function App() {
     return local ? JSON.parse(local) : {};
   });
   const [settings, setSettings] = useState<AppSettings>(localStorageCache.get('app_settings') || DEFAULT_SETTINGS);
+  
+  // Ref dla settings, aby timer zawsze widział aktualny stan
+  const settingsRef = useRef(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
   const [logo, setLogo] = useState<string>(localStorage.getItem('app_logo') || 'https://lh3.googleusercontent.com/u/0/d/1GZ-QR4EyK6Ho9czlpTocORhwiHW4FGnP');
   const [audioCtx, setAudioCtx] = useState<AudioContext | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -162,11 +169,11 @@ export default function App() {
     setWorkoutStartTimeState(t);
   };
 
-  const playSoundNote = (ctx: AudioContext, freq: number, startTime: number, vol: number, duration: number = 1.2) => {
+  const playSoundNote = (ctx: AudioContext, freq: number, startTime: number, vol: number, duration: number = 1.2, type: OscillatorType = 'sine') => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       
-      osc.type = 'sine';
+      osc.type = type;
       osc.frequency.setValueAtTime(freq, startTime);
       
       osc.connect(gain);
@@ -182,6 +189,8 @@ export default function App() {
   };
 
   const playAlarm = useCallback(() => {
+    const currentSettings = settingsRef.current; // Używamy refa, aby mieć świeże dane wewnątrz interwału
+
     // 1. Dźwięk
     const CtxClass = window.AudioContext || (window as any).webkitAudioContext;
     if (CtxClass) {
@@ -190,9 +199,60 @@ export default function App() {
       if (ctx.state === 'suspended') ctx.resume();
       
       const now = ctx.currentTime;
-      const vol = settings.volume !== undefined ? settings.volume : 0.5;
+      const vol = currentSettings.volume !== undefined ? currentSettings.volume : 0.5;
       
-      switch (settings.soundType) {
+      switch (currentSettings.soundType) {
+        case 'siren': { // Głośna Syrena
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth'; // Przebija się przez hałas
+            
+            osc.frequency.setValueAtTime(600, now);
+            osc.frequency.linearRampToValueAtTime(1500, now + 0.5); // Up
+            osc.frequency.linearRampToValueAtTime(600, now + 1.0);  // Down
+            osc.frequency.linearRampToValueAtTime(1500, now + 1.5); // Up
+            osc.frequency.linearRampToValueAtTime(600, now + 2.0);  // Down
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(now);
+            osc.stop(now + 2.5);
+            
+            gain.gain.setValueAtTime(vol, now);
+            gain.gain.linearRampToValueAtTime(0, now + 2.5);
+            break;
+        }
+        case 'school_bell': { // Dzwonek szkolny
+            // Symulacja dzwonka elektrycznego (szybka modulacja)
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            const lfo = ctx.createOscillator();
+            const lfoGain = ctx.createGain();
+
+            osc.type = 'square'; // Metaliczny dźwięk
+            osc.frequency.setValueAtTime(1200, now);
+
+            lfo.type = 'square'; // Modulator (młoteczek)
+            lfo.frequency.setValueAtTime(25, now); // 25 uderzeń na sekundę
+
+            lfo.connect(lfoGain);
+            lfoGain.connect(gain.gain);
+            lfoGain.gain.value = vol; // Głębokość modulacji
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start(now);
+            lfo.start(now);
+            osc.stop(now + 2.5);
+            lfo.stop(now + 2.5);
+            
+            //Envelope na wyjściu żeby nie strzelało
+            gain.gain.setValueAtTime(vol * 0.5, now); // Start volume
+            gain.gain.linearRampToValueAtTime(0, now + 2.5);
+            break;
+        }
         case 'bell': // Classic Bell (C5)
             playSoundNote(ctx, 523.25, now, vol, 2.0);
             break;
@@ -225,12 +285,17 @@ export default function App() {
       }
     }
 
-    // 2. Wibracja (Jeśli włączona i wspierana przez przeglądarkę)
-    if (settings.vibration && navigator.vibrate) {
-        // Długa podwójna: 500ms wibracji, 200ms przerwy, 500ms wibracji
-        navigator.vibrate([500, 200, 500]);
+    // 2. Wibracja (Android)
+    // Sprawdzamy, czy funkcja istnieje i czy wibracja jest włączona w aktualnych ustawieniach
+    if (currentSettings.vibration && typeof navigator.vibrate === 'function') {
+        // Podwójna, długa wibracja: 500ms wibracji, 200ms przerwy, 500ms wibracji
+        try {
+            navigator.vibrate([500, 200, 500]);
+        } catch (e) {
+            console.error("Vibration failed", e);
+        }
     }
-  }, [audioCtx, settings]);
+  }, [audioCtx]); // settings usunięte z zależności, bo używamy settingsRef
 
   const startRestTimer = (duration: number) => {
     if (restIntervalRef.current) clearInterval(restIntervalRef.current);

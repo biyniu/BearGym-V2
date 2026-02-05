@@ -159,7 +159,7 @@ export default function SettingsView() {
                 onClick={() => {
                    const newVal = !settings.vibration;
                    updateSettings({ ...settings, vibration: newVal });
-                   if(newVal && navigator.vibrate) navigator.vibrate([200]);
+                   if(newVal && typeof navigator.vibrate === 'function') navigator.vibrate([500, 200, 500]);
                 }}
                 className={`w-12 h-6 rounded-full transition-all relative shadow-inner ${settings.vibration ? 'bg-red-600' : 'bg-gray-700'}`}
                 >
@@ -186,6 +186,8 @@ export default function SettingsView() {
                         <option value="cosmic">4. Cosmic Tone</option>
                         <option value="gong">5. Deep Gong</option>
                         <option value="victory">6. Victory Up</option>
+                        <option value="siren">7. Syrena (Głośna)</option>
+                        <option value="school_bell">8. Dzwonek Szkolny</option>
                     </select>
                     <button 
                         onClick={playAlarm}

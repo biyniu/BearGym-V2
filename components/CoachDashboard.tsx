@@ -10,7 +10,10 @@ export default function CoachDashboard() {
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'plan' | 'history' | 'extras' | 'progress' | 'calendar' | 'json'>('plan');
+  
+  // Zaktualizowany typ zakładek - 'measurements' zamiast 'extras' i dodane 'cardio'
+  const [activeTab, setActiveTab] = useState<'plan' | 'history' | 'measurements' | 'cardio' | 'progress' | 'calendar' | 'json'>('plan');
+  
   const [selectedProgressWorkout, setSelectedProgressWorkout] = useState<string>("");
   
   // Stan edycji planu
@@ -20,6 +23,14 @@ export default function CoachDashboard() {
 
   // Stan konwertera JSON
   const [excelInput, setExcelInput] = useState('');
+
+  const cardioTypesMap: Record<string, string> = {
+    'rowerek': 'fa-bicycle',
+    'bieznia': 'fa-running',
+    'schody': 'fa-stairs',
+    'orbitrek': 'fa-walking',
+    'mobility': 'fa-universal-access'
+  };
 
   const handleLogin = async () => {
     setLoading(true);
@@ -285,8 +296,9 @@ export default function CoachDashboard() {
                 <TabBtn active={activeTab === 'plan'} onClick={() => setActiveTab('plan')} label="PLAN" icon="fa-dumbbell" />
                 <TabBtn active={activeTab === 'history'} onClick={() => setActiveTab('history')} label="HISTORIA" icon="fa-history" />
                 <TabBtn active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} label="KALENDARZ" icon="fa-calendar-alt" />
+                <TabBtn active={activeTab === 'cardio'} onClick={() => setActiveTab('cardio')} label="CARDIO/MOB" icon="fa-running" />
+                <TabBtn active={activeTab === 'measurements'} onClick={() => setActiveTab('measurements')} label="POMIARY" icon="fa-ruler" />
                 <TabBtn active={activeTab === 'progress'} onClick={() => setActiveTab('progress')} label="PROGRES" icon="fa-chart-line" />
-                <TabBtn active={activeTab === 'extras'} onClick={() => setActiveTab('extras')} label="POMIARY" icon="fa-ruler" />
                 <TabBtn active={activeTab === 'json'} onClick={() => setActiveTab('json')} label="JSON" icon="fa-code" isSubtle />
               </div>
             </div>
@@ -592,9 +604,89 @@ export default function CoachDashboard() {
                 </div>
               </div>
             )}
-{/* ... Reszta (extras, json) bez zmian ... */}
-            {activeTab === 'extras' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
+
+            {/* NOWA ZAKŁADKA CARDIO/MOBILITY */}
+            {activeTab === 'cardio' && (
+              <div className="animate-fade-in max-w-4xl mx-auto space-y-6">
+                 {/* MOBILITY SECTION */}
+                 <div className="bg-[#161616] p-8 rounded-3xl border border-gray-800 shadow-xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <i className="fas fa-universal-access text-9xl text-purple-500"></i>
+                    </div>
+                    <div className="flex items-center space-x-3 mb-6 relative z-10">
+                         <div className="w-10 h-10 rounded-full bg-purple-900/30 flex items-center justify-center border border-purple-500/50">
+                             <i className="fas fa-universal-access text-purple-400"></i>
+                         </div>
+                         <h3 className="text-white font-black italic uppercase text-lg">Sesje Mobility</h3>
+                    </div>
+                    <div className="space-y-3 relative z-10">
+                        {selectedClient.extras?.cardio?.filter((c: any) => c.type === 'mobility').length > 0 ? (
+                            selectedClient.extras.cardio
+                                .filter((c: any) => c.type === 'mobility')
+                                .slice()
+                                .sort((a: any, b: any) => b.date.localeCompare(a.date))
+                                .map((c: any) => (
+                                <div key={c.id} className="flex justify-between items-start p-4 bg-purple-900/10 rounded-2xl border border-purple-500/20 hover:bg-purple-900/20 transition">
+                                    <div>
+                                        <div className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-1">{c.date}</div>
+                                        {c.notes && <div className="text-xs text-gray-400 italic">"{c.notes}"</div>}
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-sm font-black text-white italic uppercase tracking-tighter">{c.duration}</div>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-gray-600 text-sm italic py-4">Brak zapisanych sesji mobility.</p>
+                        )}
+                    </div>
+                 </div>
+
+                 {/* CARDIO SECTION */}
+                 <div className="bg-[#161616] p-8 rounded-3xl border border-gray-800 shadow-xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <i className="fas fa-heartbeat text-9xl text-red-500"></i>
+                    </div>
+                    <div className="flex items-center space-x-3 mb-6 relative z-10">
+                         <div className="w-10 h-10 rounded-full bg-red-900/30 flex items-center justify-center border border-red-500/50">
+                             <i className="fas fa-running text-red-400"></i>
+                         </div>
+                         <h3 className="text-white font-black italic uppercase text-lg">Sesje Cardio</h3>
+                    </div>
+                    <div className="space-y-3 relative z-10">
+                        {selectedClient.extras?.cardio?.filter((c: any) => c.type !== 'mobility').length > 0 ? (
+                            selectedClient.extras.cardio
+                                .filter((c: any) => c.type !== 'mobility')
+                                .slice()
+                                .sort((a: any, b: any) => b.date.localeCompare(a.date))
+                                .map((c: any) => {
+                                    const icon = cardioTypesMap[c.type] || 'fa-heartbeat';
+                                    return (
+                                        <div key={c.id} className="flex justify-between items-center p-4 bg-black/30 rounded-2xl border border-gray-800 hover:border-gray-700 transition">
+                                            <div className="flex items-center space-x-4">
+                                                <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-red-500 border border-gray-700">
+                                                    <i className={`fas ${icon}`}></i>
+                                                </div>
+                                                <div>
+                                                    <div className="text-[10px] font-black text-red-500 uppercase tracking-widest">{c.type}</div>
+                                                    <div className="text-xs font-bold text-gray-400">{c.date}</div>
+                                                    {c.notes && <div className="text-[10px] text-gray-600 mt-0.5 max-w-[200px] truncate">{c.notes}</div>}
+                                                </div>
+                                            </div>
+                                            <div className="text-sm font-black text-white italic uppercase tracking-tighter">{c.duration}</div>
+                                        </div>
+                                    );
+                                })
+                        ) : (
+                            <p className="text-gray-600 text-sm italic py-4">Brak zapisanych sesji cardio.</p>
+                        )}
+                    </div>
+                 </div>
+              </div>
+            )}
+
+            {activeTab === 'measurements' && (
+              <div className="max-w-3xl mx-auto animate-fade-in">
                 <div className="bg-[#161616] p-8 rounded-3xl border border-gray-800 shadow-xl">
                   <div className="flex items-center space-x-3 mb-6">
                     <i className="fas fa-ruler-horizontal text-green-500"></i>
@@ -616,28 +708,6 @@ export default function CoachDashboard() {
                       ))
                     ) : (
                       <p className="text-gray-600 text-sm italic">Brak zapisanych pomiarów.</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-[#161616] p-8 rounded-3xl border border-gray-800 shadow-xl">
-                  <div className="flex items-center space-x-3 mb-6">
-                    <i className="fas fa-heartbeat text-red-500"></i>
-                    <h3 className="text-white font-black italic uppercase">Logi Cardio</h3>
-                  </div>
-                  <div className="space-y-2">
-                    {selectedClient.extras?.cardio?.length > 0 ? (
-                      selectedClient.extras.cardio.map((c: any) => (
-                        <div key={c.id} className="flex justify-between items-center p-4 bg-black/30 rounded-2xl border border-gray-800 hover:border-gray-700 transition">
-                          <div>
-                            <div className="text-[10px] font-black text-red-500 uppercase tracking-widest">{c.type}</div>
-                            <div className="text-xs font-bold text-gray-500">{c.date}</div>
-                          </div>
-                          <div className="text-sm font-black text-white italic uppercase tracking-tighter">{c.duration}</div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-600 text-sm italic">Brak zapisanych sesji cardio.</p>
                     )}
                   </div>
                 </div>

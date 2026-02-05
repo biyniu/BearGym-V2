@@ -15,6 +15,7 @@ export default function CardioView() {
   // Custom Modals State
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; message: string; action: () => void } | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -61,6 +62,7 @@ export default function CardioView() {
     });
 
     setForm(prev => ({ ...prev, duration: '', notes: '' }));
+    setSuccessMessage("Trening został pomyślnie zapisany!");
   };
 
   const handleDeleteRequest = (id: string) => {
@@ -252,6 +254,27 @@ export default function CardioView() {
             )) : <p className="text-center text-gray-500 py-6">Brak zapisanych sesji.</p>}
         </div>
       </div>
+
+      {/* SUCCESS MODAL */}
+      {successMessage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
+              <div className="bg-[#1e1e1e] border border-green-600 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+                  <div className="bg-green-900/20 p-4 border-b border-green-900/30 flex items-center justify-center">
+                      <i className="fas fa-check-circle text-green-500 text-3xl"></i>
+                  </div>
+                  <div className="p-6 text-center">
+                      <h3 className="text-xl font-black text-white italic uppercase mb-2">Sukces</h3>
+                      <p className="text-gray-400 text-sm">{successMessage}</p>
+                  </div>
+                  <button 
+                      onClick={() => setSuccessMessage(null)}
+                      className="w-full py-4 bg-green-600 hover:bg-green-700 text-white font-bold transition text-xs uppercase border-t border-green-800"
+                  >
+                      OK
+                  </button>
+              </div>
+          </div>
+      )}
 
       {/* CONFIRM MODAL */}
       {confirmModal && (

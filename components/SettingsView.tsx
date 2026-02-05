@@ -209,8 +209,9 @@ export default function SettingsView() {
                     <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Cel: Treningi / Tydz.</label>
                     <input 
                         type="number"
-                        value={settings.targetWorkoutsPerWeek || 3}
-                        onChange={(e) => updateSettings({ ...settings, targetWorkoutsPerWeek: parseInt(e.target.value) })}
+                        value={settings.targetWorkoutsPerWeek ?? ''}
+                        onChange={(e) => updateSettings({ ...settings, targetWorkoutsPerWeek: e.target.value === '' ? undefined : parseInt(e.target.value) })}
+                        placeholder="3"
                         className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white text-center font-bold focus:border-yellow-500 outline-none"
                     />
                 </div>
@@ -218,8 +219,9 @@ export default function SettingsView() {
                     <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Cel: Cardio / Tydz.</label>
                     <input 
                         type="number"
-                        value={settings.targetCardioPerWeek || 3}
-                        onChange={(e) => updateSettings({ ...settings, targetCardioPerWeek: parseInt(e.target.value) })}
+                        value={settings.targetCardioPerWeek ?? ''}
+                        onChange={(e) => updateSettings({ ...settings, targetCardioPerWeek: e.target.value === '' ? undefined : parseInt(e.target.value) })}
+                        placeholder="3"
                         className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white text-center font-bold focus:border-yellow-500 outline-none"
                     />
                 </div>
@@ -251,8 +253,6 @@ export default function SettingsView() {
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.autoRestTimer ? 'left-7' : 'left-1'}`}></div>
                 </button>
             </div>
-
-            {/* USUNIĘTO SEKCJĘ WIBRACJI ZGODNIE Z ŻYCZENIEM */}
 
             <div className="p-3 bg-gray-900 rounded-xl border border-gray-800">
                <div className="mb-2">
@@ -304,6 +304,13 @@ export default function SettingsView() {
                    <i className="fas fa-volume-up text-gray-500 text-xs"></i>
                </div>
             </div>
+
+             <button 
+                onClick={confirmProfileSave}
+                className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white font-black py-3 rounded-xl shadow-lg transition transform active:scale-95 uppercase italic text-xs tracking-widest flex items-center justify-center"
+            >
+                {saveStatus ? <><i className="fas fa-check mr-2"></i> {saveStatus}</> : "ZATWIERDŹ USTAWIENIA DŹWIĘKU"}
+            </button>
         </div>
       </div>
 

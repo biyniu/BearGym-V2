@@ -73,9 +73,21 @@ export default function AICoachWidget() {
     const activities = getAllActivities();
     const lastActivity = activities.length > 0 ? activities[0] : null;
     
-    // Obliczanie statystyk z ostatnich 7 dni
-    const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    const thisWeekActivities = activities.filter(a => a.timestamp > oneWeekAgo);
+    // Obliczanie statystyk dla BIEŻĄCEGO TYGODNIA KALENDARZOWEGO (od Poniedziałku)
+    const now = new Date();
+    const currentDay = now.getDay(); // 0 = Niedziela, 1 = Poniedziałek, ...
+    
+    // Obliczamy dystans do ostatniego poniedziałku
+    // Jeśli dzisiaj niedziela (0), to poniedziałek był 6 dni temu.
+    // Jeśli poniedziałek (1), to 0 dni temu.
+    const distanceToMonday = (currentDay + 6) % 7;
+    
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - distanceToMonday);
+    startOfWeek.setHours(0, 0, 0, 0); // Początek dnia w poniedziałek
+    const startOfWeekTimestamp = startOfWeek.getTime();
+
+    const thisWeekActivities = activities.filter(a => a.timestamp >= startOfWeekTimestamp);
     
     const strengthCount = thisWeekActivities.filter(a => a.type === 'strength').length;
     const cardioCount = thisWeekActivities.filter(a => a.type === 'cardio').length;
@@ -127,18 +139,18 @@ export default function AICoachWidget() {
       
       ${weightContext}
       
-      STATYSTYKI (Ostatnie 7 dni):
-      - Treningi siłowe: ${strengthCount} / Cel: ${targetStrength}
-      - Cardio: ${cardioCount} / Cel: ${targetCardio}
+      STATYSTYKI (Obecny tydzień kalendarzowy - od Poniedziałku):
+      - Treningi siłowe w tym tygodniu: ${strengthCount} (Cel: ${targetStrength})
+      - Cardio w tym tygodniu: ${cardioCount} (Cel: ${targetCardio})
       - Ostatnia aktywność: ${lastActivity ? `${lastActivity.date} (${lastActivity.title})` : "BRAK AKTYWNOŚCI OD DAWNA!"}
       
       TWOJA OSOBOWOŚĆ I ZASADY:
-      1. EMPATIA NA PIERWSZYM MIEJSCU: Jeśli użytkownik narzeka, że mu się nie chce, jest zmęczony lub ma zły dzień - ZAAKCEPTUJ TO. Powiedz: "Rozumiem, że masz gorszy dzień", "Wiem, że dzisiaj kanapa wygrywa".
-      2. PRZYPOMNIENIE "DLACZEGO" i LICZBY: Używaj danych wagowych! Jeśli ktoś chce odpuścić, powiedz: "Schudłeś już ${startWeight - currentWeight}kg, zostało tylko ${currentWeight - targetWeight}kg. Nie zmarnuj tego wysiłku". Liczby działają na wyobraźnię.
-      3. METODA MAŁYCH KROKÓW: Zamiast krzyczeć "IDŹ NA TRENING", zaproponuj kompromis. Np. "Rozumiem, że nie masz siły na całość. Zrób tylko rozgrzewkę i jedną serię. Tylko tyle. Jak dalej nie będziesz chciał, to wrócisz do domu". (To trik psychologiczny).
-      4. FILOZOFIA "ROZUMIEM, ALE ZRÓB": Twoje motto to: "Twoje uczucia są ważne, ale Twoje cele są ważniejsze". Bądź spokojny, stanowczy i wspierający.
-      5. SŁABOŚCI: Jeśli użytkownik wspomina o słabościach ("${settings.userDifficulties}"), nie oceniaj go. Wytłumacz mu mechanizm, dlaczego tak się dzieje i jak to pokonać.
-      6. BRAK WYNIKÓW: Jeśli statystyki są słabe (${strengthCount} treningów vs cel ${targetStrength}), nie ochrzaniaj go bezmyślnie. Zapytaj z troską: "Widzę, że ostatnio odpuściłeś. Co się dzieje? Jak możemy wrócić na tory?".
+      1. ANALIZA TYGODNIOWA: Zawsze odnoś się do bieżącego tygodnia. Jeśli jest np. Piątek, a on zrobił 2 treningi (a cel to 3), zmotywuj go, że ma jeszcze weekend, by dobić cel.
+      2. EMPATIA NA PIERWSZYM MIEJSCU: Jeśli użytkownik narzeka, że mu się nie chce, jest zmęczony lub ma zły dzień - ZAAKCEPTUJ TO. Powiedz: "Rozumiem, że masz gorszy dzień", "Wiem, że dzisiaj kanapa wygrywa".
+      3. PRZYPOMNIENIE "DLACZEGO" i LICZBY: Używaj danych wagowych! Jeśli ktoś chce odpuścić, powiedz: "Schudłeś już ${startWeight - currentWeight}kg, zostało tylko ${currentWeight - targetWeight}kg. Nie zmarnuj tego wysiłku". Liczby działają na wyobraźnię.
+      4. METODA MAŁYCH KROKÓW: Zamiast krzyczeć "IDŹ NA TRENING", zaproponuj kompromis. Np. "Rozumiem, że nie masz siły na całość. Zrób tylko rozgrzewkę i jedną serię. Tylko tyle. Jak dalej nie będziesz chciał, to wrócisz do domu". (To trik psychologiczny).
+      5. FILOZOFIA "ROZUMIEM, ALE ZRÓB": Twoje motto to: "Twoje uczucia są ważne, ale Twoje cele są ważniejsze". Bądź spokojny, stanowczy i wspierający.
+      6. BRAK WYNIKÓW: Jeśli statystyki są słabe (${strengthCount} treningów vs cel ${targetStrength}), nie ochrzaniaj go bezmyślnie. Zapytaj z troską: "Widzę, że w tym tygodniu trochę słabiej. Co się dzieje? Jak możemy wrócić na tory?".
       
       STYL WYPOWIEDZI:
       - Mów jak do przyjaciela, któremu dobrze życzysz.
@@ -156,29 +168,20 @@ export default function AICoachWidget() {
     setLoading(true);
 
     try {
-        // PRÓBA 1: Pobierz z process.env (podmienianego przez Vite)
-        // PRÓBA 2: Pobierz bezpośrednio z import.meta.env (natywne dla Vite) jako fallback
-        // PRÓBA 3: Pobierz z CLIENT_CONFIG
-        let apiKey = process.env.API_KEY;
-        if (!apiKey) {
-           apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
-        }
-        if (!apiKey) {
-           apiKey = CLIENT_CONFIG.geminiApiKey;
-        }
+        // Pobieramy klucz API wstrzyknięty przez vite.config.ts
+        // Teraz szukamy po prostu process.env.API_KEY (który w configu jest mapowany z API_KEY lub VITE_GEMINI_API_KEY)
+        const apiKey = process.env.API_KEY;
         
-        // Walidacja podstawowa
+        // Walidacja klucza
         if (!apiKey || apiKey.length < 10) {
-            console.error("Missing API Key. Ensure VITE_GEMINI_API_KEY is set in Vercel.");
+            console.error("Missing API Key.");
             setTimeout(() => {
-                setMessages(prev => [...prev, { role: 'model', text: "Błąd konfiguracji: Brak klucza API. Upewnij się, że dodałeś VITE_GEMINI_API_KEY w ustawieniach Vercel i przebudowałeś aplikację (Redeploy)." }]);
+                setMessages(prev => [...prev, { role: 'model', text: "Błąd konfiguracji: Brak klucza API. Upewnij się, że dodałeś zmienną 'API_KEY' w ustawieniach Vercel i wykonałeś Redeploy." }]);
                 setLoading(false);
             }, 1000);
             return;
         }
 
-        // Inicjalizacja klienta Google GenAI
-        // Zgodnie z wytycznymi używamy process.env.API_KEY, ale przekazujemy zmienną, którą udało się znaleźć
         const ai = new GoogleGenAI({ apiKey });
         
         const response = await ai.models.generateContent({

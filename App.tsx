@@ -13,7 +13,7 @@ import CoachDashboard from './components/CoachDashboard';
 import InstallPrompt from './components/InstallPrompt';
 import { localStorageCache, remoteStorage, storage } from './services/storage';
 import { WorkoutsMap, AppSettings } from './types';
-import { CLIENT_CONFIG } from './constants';
+import { CLIENT_CONFIG, DEFAULT_SETTINGS } from './constants';
 
 interface AppContextType {
   clientCode: string | null;
@@ -142,7 +142,7 @@ export default function App() {
     const local = localStorage.getItem(`${CLIENT_CONFIG.storageKey}_workouts`);
     return local ? JSON.parse(local) : {};
   });
-  const [settings, setSettings] = useState<AppSettings>(localStorageCache.get('app_settings') || { volume: 0.5, soundType: 'beep2', autoRestTimer: true });
+  const [settings, setSettings] = useState<AppSettings>(localStorageCache.get('app_settings') || DEFAULT_SETTINGS);
   const [logo, setLogo] = useState<string>(localStorage.getItem('app_logo') || 'https://lh3.googleusercontent.com/u/0/d/1GZ-QR4EyK6Ho9czlpTocORhwiHW4FGnP');
   const [audioCtx, setAudioCtx] = useState<AudioContext | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -162,7 +162,7 @@ export default function App() {
     setWorkoutStartTimeState(t);
   };
 
-  const playSoundNote = (ctx: AudioContext, freq: number, startTime: number, vol: number) => {
+  const playSoundNote = (ctx: AudioContext, freq: number, startTime: number, vol: number, duration: number = 1.2) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       
@@ -173,55 +173,62 @@ export default function App() {
       gain.connect(ctx.destination);
       
       osc.start(startTime);
-      osc.stop(startTime + 1.2);
+      osc.stop(startTime + duration);
       
       // Envelope
       gain.gain.setValueAtTime(0, startTime);
       gain.gain.linearRampToValueAtTime(vol, startTime + 0.05); // Attack
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 1.0); // Decay
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration - 0.1); // Decay
   };
 
   const playAlarm = useCallback(() => {
+    // 1. Dźwięk
     const CtxClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (!CtxClass) return;
-    let ctx = audioCtx || new CtxClass();
-    if (!audioCtx) setAudioCtx(ctx);
-    if (ctx.state === 'suspended') ctx.resume();
-    
-    const now = ctx.currentTime;
-    const vol = settings.volume !== undefined ? settings.volume : 0.5;
-    
-    if (settings.soundType === 'beep1') {
-        // --- 1. SOFT BELL (Sine Wave, C5) ---
-        playSoundNote(ctx, 523.25, now, vol);
-        
-    } else if (settings.soundType === 'beep4') {
-        // --- 4. DOUBLE SOFT BELL (Sine, C5 + C5) ---
-        playSoundNote(ctx, 523.25, now, vol);
-        playSoundNote(ctx, 523.25, now + 0.25, vol);
+    if (CtxClass) {
+      let ctx = audioCtx || new CtxClass();
+      if (!audioCtx) setAudioCtx(ctx);
+      if (ctx.state === 'suspended') ctx.resume();
+      
+      const now = ctx.currentTime;
+      const vol = settings.volume !== undefined ? settings.volume : 0.5;
+      
+      switch (settings.soundType) {
+        case 'bell': // Classic Bell (C5)
+            playSoundNote(ctx, 523.25, now, vol, 2.0);
+            break;
+        case 'double_bell': // Double Soft Bell (C5 + C5)
+            playSoundNote(ctx, 523.25, now, vol, 1.5);
+            playSoundNote(ctx, 523.25, now + 0.3, vol, 2.0);
+            break;
+        case 'chord': // Soft Major Triad Arpeggio (C-E-G)
+            playSoundNote(ctx, 523.25, now, vol * 0.5, 2.0);
+            playSoundNote(ctx, 659.25, now + 0.1, vol * 0.5, 2.0);
+            playSoundNote(ctx, 783.99, now + 0.2, vol * 0.5, 2.5);
+            break;
+        case 'cosmic': // Higher pitch, dreamy
+            playSoundNote(ctx, 880.00, now, vol * 0.4, 2.0); // A5
+            playSoundNote(ctx, 1108.73, now + 0.15, vol * 0.4, 2.5); // C#6
+            break;
+        case 'gong': // Low Frequency, long sustain
+            playSoundNote(ctx, 196.00, now, vol * 0.8, 3.0); // G3
+            playSoundNote(ctx, 392.00, now, vol * 0.4, 2.5); // G4 harmonic
+            break;
+        case 'victory': // Rising scale (C-E-G-C)
+            playSoundNote(ctx, 523.25, now, vol * 0.4, 0.5);
+            playSoundNote(ctx, 659.25, now + 0.15, vol * 0.4, 0.5);
+            playSoundNote(ctx, 783.99, now + 0.30, vol * 0.4, 0.5);
+            playSoundNote(ctx, 1046.50, now + 0.45, vol * 0.4, 2.0);
+            break;
+        default: // Fallback to bell
+            playSoundNote(ctx, 523.25, now, vol, 2.0);
+            break;
+      }
+    }
 
-    } else if (settings.soundType === 'beep2') {
-        // --- 2. SUCCESS CHORD (Major Triad: C5, E5, G5) ---
-        playSoundNote(ctx, 523.25, now, vol * 0.4);
-        playSoundNote(ctx, 659.25, now + 0.05, vol * 0.4);
-        playSoundNote(ctx, 783.99, now + 0.1, vol * 0.4);
-        
-    } else {
-        // --- 3. LOW GONG (Low freq sine) ---
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine'; // Sine is softer than triangle
-        osc.frequency.setValueAtTime(150, now);
-        
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        
-        osc.start(now);
-        osc.stop(now + 1.5);
-        
-        gain.gain.setValueAtTime(0, now);
-        gain.gain.linearRampToValueAtTime(vol, now + 0.1);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+    // 2. Wibracja (Jeśli włączona i wspierana przez przeglądarkę)
+    if (settings.vibration && navigator.vibrate) {
+        // Długa podwójna: 500ms wibracji, 200ms przerwy, 500ms wibracji
+        navigator.vibrate([500, 200, 500]);
     }
   }, [audioCtx, settings]);
 

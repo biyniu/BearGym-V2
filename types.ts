@@ -43,8 +43,9 @@ export interface WorkoutHistoryEntry {
 
 export interface AppSettings {
   volume: number;
-  soundType: 'beep1' | 'beep2' | 'beep3' | 'beep4';
+  soundType: 'bell' | 'double_bell' | 'chord' | 'cosmic' | 'gong' | 'victory';
   autoRestTimer: boolean;
+  vibration: boolean;
 }
 
 export interface BodyMeasurement {

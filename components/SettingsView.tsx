@@ -150,29 +150,54 @@ export default function SettingsView() {
                 </button>
             </div>
 
+            <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800">
+                <div>
+                <div className="text-[11px] font-black text-white uppercase italic tracking-widest">Wibracja (Android)</div>
+                <div className="text-[9px] text-gray-500 font-bold uppercase">Długa, podwójna wibracja</div>
+                </div>
+                <button 
+                onClick={() => {
+                   const newVal = !settings.vibration;
+                   updateSettings({ ...settings, vibration: newVal });
+                   if(newVal && navigator.vibrate) navigator.vibrate([200]);
+                }}
+                className={`w-12 h-6 rounded-full transition-all relative shadow-inner ${settings.vibration ? 'bg-red-600' : 'bg-gray-700'}`}
+                >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.vibration ? 'left-7' : 'left-1'}`}></div>
+                </button>
+            </div>
+
             <div className="p-3 bg-gray-900 rounded-xl border border-gray-800">
-               <div className="flex items-center justify-between mb-2">
+               <div className="mb-2">
                  <div>
-                    <div className="text-[11px] font-black text-white uppercase italic tracking-widest">Dźwięk Timera</div>
-                    <div className="text-[9px] text-gray-500 font-bold uppercase">Głośność i rodzaj</div>
+                    <div className="text-[11px] font-black text-white uppercase italic tracking-widest mb-2">Rodzaj Dźwięku</div>
                  </div>
-                 <select 
-                   value={settings.soundType} 
-                   onChange={(e) => {
-                       updateSettings({ ...settings, soundType: e.target.value as any });
-                       setTimeout(() => playAlarm(), 100);
-                   }}
-                   className="bg-black text-white text-[10px] font-bold p-2 rounded border border-gray-700 outline-none uppercase"
-                 >
-                   <option value="beep1">Soft Bell</option>
-                   <option value="beep4">Double Bell</option>
-                   <option value="beep2">Success</option>
-                   <option value="beep3">Gong</option>
-                 </select>
+                 <div className="flex items-center space-x-2">
+                    <select 
+                        value={settings.soundType} 
+                        onChange={(e) => {
+                            updateSettings({ ...settings, soundType: e.target.value as any });
+                        }}
+                        className="flex-grow bg-black text-white text-[10px] font-bold p-2.5 rounded border border-gray-700 outline-none uppercase"
+                    >
+                        <option value="bell">1. Classic Bell</option>
+                        <option value="double_bell">2. Double Bell</option>
+                        <option value="chord">3. Soft Chord</option>
+                        <option value="cosmic">4. Cosmic Tone</option>
+                        <option value="gong">5. Deep Gong</option>
+                        <option value="victory">6. Victory Up</option>
+                    </select>
+                    <button 
+                        onClick={playAlarm}
+                        className="bg-gray-800 hover:bg-gray-700 text-white p-2.5 rounded border border-gray-700"
+                    >
+                        <i className="fas fa-play text-xs"></i>
+                    </button>
+                 </div>
                </div>
                
                {/* Volume Slider */}
-               <div className="flex items-center space-x-3 mt-2">
+               <div className="flex items-center space-x-3 mt-4 pt-2 border-t border-gray-800">
                    <i className="fas fa-volume-down text-gray-500 text-xs"></i>
                    <input 
                     type="range" 

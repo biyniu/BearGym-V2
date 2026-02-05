@@ -8,7 +8,9 @@ export const CLIENT_CONFIG = {
 
 export const DEFAULT_SETTINGS = {
   volume: 0.5,
-  soundType: 'beep2' as const,
+  soundType: 'double_bell' as const,
+  autoRestTimer: true,
+  vibration: false
 };
 
 /**

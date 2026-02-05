@@ -613,14 +613,14 @@ export default function CoachDashboard() {
                                             </div>
                                             <div className="h-40 w-full">
                                                 <ResponsiveContainer width="100%" height="100%">
-                                                    <LineChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+                                                    <LineChart data={data} margin={{ top: 10, right: 30, bottom: 0, left: 10 }}>
                                                         <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
                                                         <XAxis 
                                                             dataKey="date" 
                                                             stroke="#555" 
                                                             tick={{fill: '#666', fontSize: 9}} 
                                                             tickMargin={5} 
-                                                            padding={{ left: 20, right: 20 }}
+                                                            padding={{ left: 30, right: 30 }}
                                                         />
                                                         <YAxis hide={true} domain={[domainMin, domainMax]} />
                                                         <Tooltip 

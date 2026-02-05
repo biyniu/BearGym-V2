@@ -11,7 +11,6 @@ import CardioView from './components/CardioView';
 import AuthView from './components/AuthView';
 import CoachDashboard from './components/CoachDashboard';
 import InstallPrompt from './components/InstallPrompt';
-import AICoachWidget from './components/AICoachWidget';
 import { localStorageCache, remoteStorage, storage } from './services/storage';
 import { WorkoutsMap, AppSettings } from './types';
 import { CLIENT_CONFIG, DEFAULT_SETTINGS } from './constants';
@@ -99,9 +98,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <div className="p-3 space-y-4 flex-grow pb-24 pt-20">
         {children}
       </div>
-
-      {/* Asystent AI - dostępny zawsze */}
-      {clientCode && <AICoachWidget />}
 
       {isHome && (
         <div className="fixed bottom-6 right-6 z-50 animate-bounce-slow">
@@ -287,6 +283,19 @@ export default function App() {
             playSoundNote(ctx, 523.25, now, vol, 2.0);
             break;
       }
+    }
+
+    // 2. Wibracja (Android)
+    // UWAGA: Używamy window.navigator.vibrate dla pewności.
+    // Zamiast tablicy (pattern), używamy pojedynczej liczby (duration).
+    // Wiele Androidów ignoruje patterny w PWA bez bezpośredniej interakcji, ale puszcza pojedynczy sygnał.
+    if (currentSettings.vibration && typeof window.navigator.vibrate === 'function') {
+        try {
+            // Wymuszamy pojedynczą, solidną wibrację przez 1000ms (1 sekunda)
+            window.navigator.vibrate(1000); 
+        } catch (e) {
+            console.error("Vibration failed", e);
+        }
     }
   }, [audioCtx]); // settings usunięte z zależności, bo używamy settingsRef
 

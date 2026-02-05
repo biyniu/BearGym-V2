@@ -2,14 +2,15 @@
 export const CLIENT_CONFIG = {
   name: "BEAR GYM",
   // PAMIĘTAJ: Wklej tutaj URL swojego wdrożenia z Google Apps Script!
-  googleAppScriptUrl: "https://script.google.com/macros/s/AKfycbyCq11Ca7LyiHlJqNe_VG464s2Vh0r2Tyhcoxg4mq8CVE93Khx2OAB5zZbU6dkNlj12fw/exec",
+  googleAppScriptUrl: "https://script.google.com/macros/s/AKfycbz2bM5DeepxbEAwMcMHAbJEJZ6O24OJpAuHFqp6PaEijn9N2BqdKUoUY-qJJk6E4u6i/exec",
   storageKey: 'bear_gym_cloud_v1'
 };
 
 export const DEFAULT_SETTINGS = {
   volume: 0.5,
   soundType: 'double_bell' as const,
-  autoRestTimer: true
+  autoRestTimer: true,
+  vibration: false
 };
 
 /**

@@ -45,6 +45,7 @@ export interface AppSettings {
   volume: number;
   soundType: 'bell' | 'double_bell' | 'chord' | 'cosmic' | 'gong' | 'victory' | 'siren' | 'school_bell';
   autoRestTimer: boolean;
+  vibration: boolean;
 }
 
 export interface BodyMeasurement {

@@ -150,6 +150,24 @@ export default function SettingsView() {
                 </button>
             </div>
 
+            <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800">
+                <div>
+                <div className="text-[11px] font-black text-white uppercase italic tracking-widest">Wibracja (Android)</div>
+                <div className="text-[9px] text-gray-500 font-bold uppercase">Długa, pojedyncza wibracja</div>
+                </div>
+                <button 
+                onClick={() => {
+                   const newVal = !settings.vibration;
+                   updateSettings({ ...settings, vibration: newVal });
+                   // Używamy window.navigator.vibrate(1000) - pojedyncza wibracja, bardziej niezawodna na Androidzie
+                   if(newVal && typeof window.navigator.vibrate === 'function') window.navigator.vibrate(1000);
+                }}
+                className={`w-12 h-6 rounded-full transition-all relative shadow-inner ${settings.vibration ? 'bg-red-600' : 'bg-gray-700'}`}
+                >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.vibration ? 'left-7' : 'left-1'}`}></div>
+                </button>
+            </div>
+
             <div className="p-3 bg-gray-900 rounded-xl border border-gray-800">
                <div className="mb-2">
                  <div>

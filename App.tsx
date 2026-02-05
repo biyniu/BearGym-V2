@@ -284,19 +284,6 @@ export default function App() {
             break;
       }
     }
-
-    // 2. Wibracja (Android)
-    // UWAGA: Używamy window.navigator.vibrate dla pewności.
-    // Zamiast tablicy (pattern), używamy pojedynczej liczby (duration).
-    // Wiele Androidów ignoruje patterny w PWA bez bezpośredniej interakcji, ale puszcza pojedynczy sygnał.
-    if (currentSettings.vibration && typeof window.navigator.vibrate === 'function') {
-        try {
-            // Wymuszamy pojedynczą, solidną wibrację przez 1000ms (1 sekunda)
-            window.navigator.vibrate(1000); 
-        } catch (e) {
-            console.error("Vibration failed", e);
-        }
-    }
   }, [audioCtx]); // settings usunięte z zależności, bo używamy settingsRef
 
   const startRestTimer = (duration: number) => {

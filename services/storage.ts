@@ -55,6 +55,28 @@ export const remoteStorage = {
     } catch (e) { return { success: false }; }
   },
 
+  addClient: async (masterCode: string, newClientCode: string, newClientName: string) => {
+    try {
+      const payload = {
+        code: masterCode, // Używamy masterCode do autoryzacji operacji
+        type: 'add_client',
+        data: {
+            clientCode: newClientCode.trim().toUpperCase(),
+            clientName: newClientName.trim()
+        }
+      };
+      
+      const response = await fetch(CLIENT_CONFIG.googleAppScriptUrl, {
+        method: 'POST',
+        mode: 'no-cors', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      // W trybie no-cors nie odczytamy body, ale zakładamy sukces jeśli nie rzuci błędem sieci
+      return true;
+    } catch (e) { return false; }
+  },
+
   saveToCloud: async (code: string, type: string, data: any) => {
     try {
       await fetch(CLIENT_CONFIG.googleAppScriptUrl, {

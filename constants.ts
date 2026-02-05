@@ -9,8 +9,7 @@ export const CLIENT_CONFIG = {
 export const DEFAULT_SETTINGS = {
   volume: 0.5,
   soundType: 'double_bell' as const,
-  autoRestTimer: true,
-  vibration: false
+  autoRestTimer: true
 };
 
 /**

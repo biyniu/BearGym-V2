@@ -156,17 +156,29 @@ export default function AICoachWidget() {
     setLoading(true);
 
     try {
-        const apiKey = CLIENT_CONFIG.geminiApiKey;
+        // PRÓBA 1: Pobierz z process.env (podmienianego przez Vite)
+        // PRÓBA 2: Pobierz bezpośrednio z import.meta.env (natywne dla Vite) jako fallback
+        // PRÓBA 3: Pobierz z CLIENT_CONFIG
+        let apiKey = process.env.API_KEY;
+        if (!apiKey) {
+           apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+        }
+        if (!apiKey) {
+           apiKey = CLIENT_CONFIG.geminiApiKey;
+        }
         
-        // Tryb demo
+        // Walidacja podstawowa
         if (!apiKey || apiKey.length < 10) {
+            console.error("Missing API Key. Ensure VITE_GEMINI_API_KEY is set in Vercel.");
             setTimeout(() => {
-                setMessages(prev => [...prev, { role: 'model', text: "Błąd: Brak klucza API w konfiguracji." }]);
+                setMessages(prev => [...prev, { role: 'model', text: "Błąd konfiguracji: Brak klucza API. Upewnij się, że dodałeś VITE_GEMINI_API_KEY w ustawieniach Vercel i przebudowałeś aplikację (Redeploy)." }]);
                 setLoading(false);
             }, 1000);
             return;
         }
 
+        // Inicjalizacja klienta Google GenAI
+        // Zgodnie z wytycznymi używamy process.env.API_KEY, ale przekazujemy zmienną, którą udało się znaleźć
         const ai = new GoogleGenAI({ apiKey });
         
         const response = await ai.models.generateContent({

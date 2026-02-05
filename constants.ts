@@ -4,10 +4,8 @@ export const CLIENT_CONFIG = {
   // PAMIĘTAJ: Wklej tutaj URL swojego wdrożenia z Google Apps Script!
   googleAppScriptUrl: "https://script.google.com/macros/s/AKfycbz2bM5DeepxbEAwMcMHAbJEJZ6O24OJpAuHFqp6PaEijn9N2BqdKUoUY-qJJk6E4u6i/exec",
   storageKey: 'bear_gym_cloud_v1',
-  // Klucz API pobierany ze zmiennych środowiskowych (Vercel / .env)
-  // Nazwa musi zaczynać się od VITE_, aby była widoczna w aplikacji frontendowej
-  // Fix: Używamy ?. (optional chaining) aby zapobiec awarii, jeśli env jest undefined
-  geminiApiKey: (import.meta as any)?.env?.VITE_GEMINI_API_KEY || "",
+  // Klucz API jest teraz wstrzykiwany przez vite.config.ts jako process.env.API_KEY
+  geminiApiKey: process.env.API_KEY || "",
   // Tutaj definiujemy wersję modelu. Jeśli wyjdzie nowsza (np. gemini-3.0), zmień to tutaj.
   geminiModel: "gemini-2.5-flash"
 };

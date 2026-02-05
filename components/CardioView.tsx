@@ -52,17 +52,26 @@ export default function CardioView() {
     };
 
     const updated = [newSession, ...sessions].sort((a,b) => b.date.localeCompare(a.date));
+    
+    // 1. Zapis lokalny (natychmiastowy)
     setSessions(updated);
     storage.saveCardioSessions(updated);
     
-    // Synchronizacja sekcji "extras"
-    await syncData('extras', {
-      measurements: storage.getMeasurements(),
-      cardio: updated
-    });
+    // 2. Próba synchronizacji (nie blokuje UI w razie błędu)
+    try {
+      await syncData('extras', {
+        measurements: storage.getMeasurements(),
+        cardio: updated
+      });
+    } catch (e) {
+      console.warn("Błąd synchronizacji cardio w tle:", e);
+    }
 
+    // 3. Reset formularza i sukces
     setForm(prev => ({ ...prev, duration: '', notes: '' }));
-    setSuccessMessage("Trening został pomyślnie zapisany!");
+    
+    const typeLabel = finalType === 'mobility' ? 'Mobility' : cardioTypes.find(c => c.value === finalType)?.label || 'Cardio';
+    setSuccessMessage(`Zapisano trening: ${typeLabel} (${form.duration})`);
   };
 
   const handleDeleteRequest = (id: string) => {
@@ -78,10 +87,13 @@ export default function CardioView() {
     setSessions(updated);
     storage.saveCardioSessions(updated);
     
-    await syncData('extras', {
-      measurements: storage.getMeasurements(),
-      cardio: updated
-    });
+    try {
+      await syncData('extras', {
+        measurements: storage.getMeasurements(),
+        cardio: updated
+      });
+    } catch (e) { console.warn("Sync error delete", e); }
+    
     setConfirmModal(null);
   };
 
@@ -255,9 +267,9 @@ export default function CardioView() {
         </div>
       </div>
 
-      {/* SUCCESS MODAL */}
+      {/* SUCCESS MODAL - Z-INDEX 100 */}
       {successMessage && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
               <div className="bg-[#1e1e1e] border border-green-600 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
                   <div className="bg-green-900/20 p-4 border-b border-green-900/30 flex items-center justify-center">
                       <i className="fas fa-check-circle text-green-500 text-3xl"></i>
@@ -276,9 +288,9 @@ export default function CardioView() {
           </div>
       )}
 
-      {/* CONFIRM MODAL */}
+      {/* CONFIRM MODAL - Z-INDEX 100 */}
       {confirmModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
               <div className="bg-[#1e1e1e] border border-gray-700 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
                   <div className="bg-red-900/20 p-4 border-b border-red-900/30 flex items-center justify-center">
                       <i className="fas fa-exclamation-triangle text-red-500 text-3xl"></i>
@@ -305,9 +317,9 @@ export default function CardioView() {
           </div>
       )}
 
-      {/* ALERT MODAL */}
+      {/* ALERT MODAL - Z-INDEX 100 */}
       {alertMessage && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-fade-in">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-fade-in">
               <div className="bg-[#1e1e1e] border border-gray-700 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
                    <div className="bg-gray-800 p-4 border-b border-gray-700 flex items-center justify-center">
                       <i className="fas fa-info-circle text-blue-500 text-3xl"></i>

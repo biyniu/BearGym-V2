@@ -520,90 +520,6 @@ export default function CoachDashboard() {
                 })}
               </div>
             )}
-{/* ... Reszta (calendar, extras, json) pozostaje bez zmian ... */}
-            {activeTab === 'calendar' && (
-              <div className="animate-fade-in flex justify-center">
-                <div className="w-full max-w-md">
-                  <CoachCalendarWidget client={selectedClient} />
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'progress' && (
-              <div className="animate-fade-in space-y-8">
-                <div className="bg-[#161616] p-6 rounded-3xl border border-gray-800 flex flex-col md:flex-row items-center gap-4 sticky top-4 z-10 shadow-2xl">
-                  <span className="text-gray-400 text-xs font-black uppercase tracking-widest whitespace-nowrap">Wybierz Trening:</span>
-                  <div className="flex-grow flex gap-2 overflow-x-auto pb-2 md:pb-0">
-                    {selectedClient.plan && Object.keys(selectedClient.plan).map(pId => (
-                      <button 
-                        key={pId}
-                        onClick={() => setSelectedProgressWorkout(pId)}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap border ${selectedProgressWorkout === pId ? 'bg-blue-600 border-blue-500 text-white' : 'bg-black border-gray-800 text-gray-500 hover:text-gray-300'}`}
-                      >
-                        {selectedClient.plan[pId].title}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-20">
-                  {selectedClient.plan?.[selectedProgressWorkout]?.exercises?.map((ex: any) => {
-                    const chartData = getExerciseChartData(selectedProgressWorkout, ex.id);
-                    if (chartData.length < 2) return null;
-                    
-                    const weights = chartData.map(d => d.weight);
-                    const maxVal = Math.max(...weights);
-                    const minVal = Math.min(...weights);
-                    const domainMax = Math.ceil(maxVal * 1.25);
-                    const domainMin = Math.max(0, Math.floor(minVal * 0.8));
-
-                    return (
-                      <div key={ex.id} className="bg-[#161616] p-6 rounded-3xl border border-gray-800 shadow-xl">
-                        <div className="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
-                          <div>
-                            <h4 className="text-white font-black italic uppercase text-sm leading-tight">{ex.name}</h4>
-                            <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">PROGRES SIŁOWY (MAX KG)</p>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xs font-black text-blue-500">{maxVal} KG</div>
-                            <div className="text-[8px] text-gray-600 uppercase font-bold">ALL-TIME PEAK</div>
-                          </div>
-                        </div>
-                        <div className="h-40 w-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData} margin={{ top: 25, right: 35, bottom: 20, left: 10 }}>
-                              <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
-                              <XAxis 
-                                dataKey="date" 
-                                stroke="#444" 
-                                tick={{fill: '#888', fontSize: 10}} 
-                                tickMargin={10}
-                                padding={{ left: 25, right: 25 }}
-                              />
-                              <YAxis hide={true} domain={[domainMin, domainMax]} />
-                              <Tooltip 
-                                contentStyle={{ backgroundColor: '#111', border: '1px solid #444', borderRadius: '8px', fontSize: '10px' }}
-                                itemStyle={{ color: '#fff' }}
-                                formatter={(v: any) => [`${v} kg`, 'Ciężar']}
-                              />
-                              <Line 
-                                type="monotone" 
-                                dataKey="weight" 
-                                stroke="#3b82f6" 
-                                strokeWidth={3} 
-                                dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#161616' }} 
-                                activeDot={{ r: 6, fill: '#fff' }}
-                                label={<CustomLabel />}
-                              />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* NOWA ZAKŁADKA CARDIO/MOBILITY */}
             {activeTab === 'cardio' && (
@@ -780,10 +696,10 @@ function CoachCalendarWidget({ client }: { client: any }) {
   const daysShort = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'];
 
   const dayStatus = useMemo(() => {
-    const status: Record<string, { strength: boolean; cardio: boolean }> = {};
+    const status: Record<string, { strength: boolean; cardio: boolean; mobility: boolean }> = {};
     
     const ensureDate = (d: string) => {
-      if (!status[d]) status[d] = { strength: false, cardio: false };
+      if (!status[d]) status[d] = { strength: false, cardio: false, mobility: false };
     };
 
     if (client.history) {
@@ -802,7 +718,12 @@ function CoachCalendarWidget({ client }: { client: any }) {
         const [y, m, d] = c.date.split('-');
         const datePart = `${d.toString().padStart(2, '0')}.${m.toString().padStart(2, '0')}.${y}`;
         ensureDate(datePart);
-        status[datePart].cardio = true;
+        
+        if (c.type === 'mobility') {
+            status[datePart].mobility = true;
+        } else {
+            status[datePart].cardio = true;
+        }
       });
     }
 
@@ -861,29 +782,42 @@ function CoachCalendarWidget({ client }: { client: any }) {
           
           const status = getStatus(day);
           const today = isToday(day);
+          
           const hasStrength = status?.strength;
           const hasCardio = status?.cardio;
+          const hasMobility = status?.mobility;
           
           let activityLabel = "";
-          if (hasStrength && hasCardio) activityLabel = "TR + CA";
-          else if (hasStrength) activityLabel = "TRENING";
-          else if (hasCardio) activityLabel = "CARDIO";
+          let bgClass = "bg-[#121212]"; // Default background
+          let borderClass = "border-gray-800"; // Default border
+
+          // Logic for Labels and Styles based on priority
+          if (hasStrength) {
+              if (hasCardio) activityLabel = "TR + CA";
+              else if (hasMobility) activityLabel = "TR + MO";
+              else activityLabel = "TRENING";
+              // Strength always keeps the image background logic, so bgClass stays default to allow image visibility
+          } else if (hasCardio) {
+              if (hasMobility) activityLabel = "CA + MO";
+              else activityLabel = "CARDIO";
+              bgClass = "bg-red-900/10";
+          } else if (hasMobility) {
+              activityLabel = "MOBILITY";
+              bgClass = "bg-purple-900/20";
+          }
+
+          const hasAny = hasStrength || hasCardio || hasMobility;
 
           return (
             <div 
               key={day} 
-              className={`aspect-square rounded-lg flex items-center justify-center relative border transition overflow-hidden ${today ? 'border-blue-500 bg-blue-500/10' : 'border-gray-800 bg-black/40'} ${hasStrength || hasCardio ? 'border-opacity-100' : 'border-opacity-30'}`}
+              className={`aspect-square rounded-lg flex items-center justify-center relative border transition overflow-hidden ${today ? 'border-blue-500 bg-blue-500/10' : ''} ${!today ? borderClass : ''} ${!today ? bgClass : ''} ${hasStrength ? 'shadow-[0_0_10px_rgba(239,68,68,0.2)]' : ''} ${!hasAny && !today ? 'bg-black/40 border-opacity-30' : ''}`}
             >
-              <span className={`absolute top-0.5 left-1 text-[8px] font-black z-20 ${hasStrength || hasCardio ? 'text-white drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,1)]' : 'text-gray-700'}`}>
+              <span className={`absolute top-0.5 left-1 text-[8px] font-black z-20 ${hasAny ? 'text-white drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,1)]' : 'text-gray-700'}`}>
                 {day}
               </span>
               
-              {hasCardio && !hasStrength && (
-                <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-red-900/20">
-                    <i className="fas fa-heartbeat text-red-600 text-sm opacity-40"></i>
-                </div>
-              )}
-
+              {/* Strength Image Background */}
               {hasStrength && (
                 <div className="absolute inset-0 w-full h-full">
                    <img 
@@ -891,12 +825,35 @@ function CoachCalendarWidget({ client }: { client: any }) {
                     className="w-full h-full object-cover grayscale opacity-30"
                     alt=""
                    />
+                   {(hasCardio || hasMobility) && <div className="absolute inset-0 bg-black/40"></div>}
                 </div>
               )}
 
+              {/* Only Cardio Icon */}
+              {hasCardio && !hasStrength && !hasMobility && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <i className="fas fa-heartbeat text-red-500 text-sm opacity-50"></i>
+                </div>
+              )}
+
+              {/* Only Mobility Icon */}
+              {hasMobility && !hasStrength && !hasCardio && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                      <i className="fas fa-universal-access text-purple-500 text-sm opacity-60"></i>
+                  </div>
+              )}
+              
+              {/* Mixed Icons (Cardio + Mobility, no Strength) */}
+              {!hasStrength && hasCardio && hasMobility && (
+                  <div className="absolute inset-0 flex items-center justify-center space-x-1">
+                      <i className="fas fa-heartbeat text-red-500 text-[10px] opacity-60"></i>
+                      <i className="fas fa-universal-access text-purple-500 text-[10px] opacity-60"></i>
+                  </div>
+              )}
+
               {/* Activity Label at Bottom */}
-              {(hasStrength || hasCardio) && (
-                <div className="absolute bottom-0 left-0 right-0 bg-red-600 py-0.5 z-20 border-t border-red-500/50">
+              {hasAny && (
+                <div className={`absolute bottom-0 left-0 right-0 py-0.5 z-20 border-t ${hasMobility && !hasStrength && !hasCardio ? 'bg-purple-700 border-purple-500/50' : 'bg-red-600 border-red-500/50'}`}>
                     <div className="text-[6px] font-black text-white uppercase tracking-tighter text-center leading-none">
                         {activityLabel}
                     </div>

@@ -19,6 +19,9 @@ export default function HistoryView() {
   const longPressTimer = useRef<number | null>(null);
   const isLongPress = useRef(false);
   
+  // Custom Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; message: string; action: () => void } | null>(null);
+  
   // Manual Entry Form State
   const [manualForm, setManualForm] = useState<{
     workoutId: string;
@@ -67,12 +70,19 @@ export default function HistoryView() {
   };
   // ------------------------
 
-  const handleDelete = async () => {
+  const handleDeleteRequest = () => {
+      if(!optionsSession) return;
+      setConfirmModal({
+          isOpen: true,
+          message: "Czy na pewno chcesz usunąć ten trening z historii? Operacji nie można cofnąć.",
+          action: performDelete
+      });
+  };
+
+  const performDelete = async () => {
     if(!optionsSession) return;
     const { wId, index } = optionsSession;
 
-    if(!window.confirm("Czy na pewno chcesz usunąć ten trening z historii?")) return;
-    
     // Pobierz surową historię
     const history = storage.getHistory(wId);
     // Posortuj tak, jak widzi to użytkownik (po dacie string)
@@ -86,6 +96,7 @@ export default function HistoryView() {
     await syncData('history', null);
     
     setOptionsSession(null);
+    setConfirmModal(null);
     setRefreshTrigger(prev => prev + 1);
   };
 
@@ -155,7 +166,7 @@ export default function HistoryView() {
   };
 
   return (
-    <div className="animate-fade-in pb-10">
+    <div className="animate-fade-in pb-10 relative">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-white text-center">Historia</h2>
         <button 
@@ -247,6 +258,35 @@ export default function HistoryView() {
         );
       })}
 
+      {/* CONFIRMATION MODAL */}
+      {confirmModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
+              <div className="bg-[#1e1e1e] border border-gray-700 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+                  <div className="bg-red-900/20 p-4 border-b border-red-900/30 flex items-center justify-center">
+                      <i className="fas fa-exclamation-triangle text-red-500 text-3xl"></i>
+                  </div>
+                  <div className="p-6 text-center">
+                      <h3 className="text-xl font-black text-white italic uppercase mb-2">Potwierdź</h3>
+                      <p className="text-gray-400 text-sm font-medium">{confirmModal.message}</p>
+                  </div>
+                  <div className="flex border-t border-gray-800">
+                      <button 
+                          onClick={() => setConfirmModal(null)}
+                          className="flex-1 py-4 text-gray-400 font-bold hover:bg-gray-800 transition text-xs uppercase"
+                      >
+                          Anuluj
+                      </button>
+                      <button 
+                          onClick={confirmModal.action}
+                          className="flex-1 py-4 text-red-500 font-bold hover:bg-red-900/20 transition text-xs uppercase border-l border-gray-800"
+                      >
+                          Usuń
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* OPTIONS MODAL (LONG PRESS) */}
       {optionsSession && (
           <div 
@@ -267,7 +307,7 @@ export default function HistoryView() {
                   </button>
 
                   <button 
-                    onClick={handleDelete}
+                    onClick={handleDeleteRequest}
                     className="w-full bg-red-700 hover:bg-red-600 text-white py-3 rounded font-bold flex items-center justify-center"
                   >
                       <i className="fas fa-trash mr-2"></i> Usuń Wpis

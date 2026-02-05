@@ -67,7 +67,7 @@ export interface BodyMeasurement {
   thigh: string;
 }
 
-export type CardioType = 'rowerek' | 'bieznia' | 'schody' | 'orbitrek';
+export type CardioType = 'rowerek' | 'bieznia' | 'schody' | 'orbitrek' | 'mobility';
 
 export interface CardioSession {
   id: string;

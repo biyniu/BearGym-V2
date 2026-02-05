@@ -9,6 +9,11 @@ export default function MeasurementsView() {
   const { syncData } = useContext(AppContext);
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>(storage.getMeasurements());
   const [selectedMetric, setSelectedMetric] = useState<keyof BodyMeasurement>('weight');
+  
+  // Custom Modals
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; message: string; action: () => void } | null>(null);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
     weight: '',
@@ -31,9 +36,13 @@ export default function MeasurementsView() {
   };
 
   const handleSave = async () => {
-    if (!form.date) return alert("Wybierz datę");
+    if (!form.date) {
+        setAlertMessage("Wybierz datę pomiaru.");
+        return;
+    }
     if (!form.weight && !form.waist && !form.chest && !form.biceps && !form.thigh) {
-        return alert("Wpisz chociaż jedną wartość");
+        setAlertMessage("Wpisz chociaż jedną wartość, aby zapisać pomiar.");
+        return;
     }
 
     const newEntry: BodyMeasurement = {
@@ -63,8 +72,15 @@ export default function MeasurementsView() {
     }));
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Usunąć ten wpis?")) return;
+  const handleDeleteRequest = (id: string) => {
+    setConfirmModal({
+        isOpen: true,
+        message: "Czy na pewno chcesz usunąć ten pomiar?",
+        action: () => performDelete(id)
+    });
+  };
+
+  const performDelete = async (id: string) => {
     const updated = measurements.filter(m => m.id !== id);
     setMeasurements(updated);
     storage.saveMeasurements(updated);
@@ -73,6 +89,7 @@ export default function MeasurementsView() {
       measurements: updated,
       cardio: storage.getCardioSessions()
     });
+    setConfirmModal(null);
   };
 
   const chartData = measurements
@@ -98,7 +115,7 @@ export default function MeasurementsView() {
   };
 
   return (
-    <div className="animate-fade-in pb-10">
+    <div className="animate-fade-in pb-10 relative">
       <h2 className="text-2xl font-bold text-white mb-6 text-center">Pomiary Ciała</h2>
 
       <div className="bg-[#1e1e1e] rounded-xl shadow-md p-4 mb-6 border border-gray-800">
@@ -196,13 +213,60 @@ export default function MeasurementsView() {
                             {m.waist && <span className="bg-gray-800 px-1 rounded text-blue-400">P: {m.waist}</span>}
                         </div>
                     </div>
-                    <button onClick={() => handleDelete(m.id)} className="text-red-900 hover:text-red-500 p-2 transition">
+                    <button onClick={() => handleDeleteRequest(m.id)} className="text-red-900 hover:text-red-500 p-2 transition">
                         <i className="fas fa-trash"></i>
                     </button>
                 </div>
             ))}
         </div>
       </div>
+
+      {/* CONFIRM MODAL */}
+      {confirmModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
+              <div className="bg-[#1e1e1e] border border-gray-700 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+                  <div className="bg-red-900/20 p-4 border-b border-red-900/30 flex items-center justify-center">
+                      <i className="fas fa-trash-alt text-red-500 text-3xl"></i>
+                  </div>
+                  <div className="p-6 text-center">
+                      <h3 className="text-xl font-black text-white italic uppercase mb-2">Potwierdź</h3>
+                      <p className="text-gray-400 text-sm font-medium">{confirmModal.message}</p>
+                  </div>
+                  <div className="flex border-t border-gray-800">
+                      <button 
+                          onClick={() => setConfirmModal(null)}
+                          className="flex-1 py-4 text-gray-400 font-bold hover:bg-gray-800 transition text-xs uppercase"
+                      >
+                          Anuluj
+                      </button>
+                      <button 
+                          onClick={confirmModal.action}
+                          className="flex-1 py-4 text-red-500 font-bold hover:bg-red-900/20 transition text-xs uppercase border-l border-gray-800"
+                      >
+                          Usuń
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* ALERT MODAL */}
+      {alertMessage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-fade-in">
+              <div className="bg-[#1e1e1e] border border-gray-700 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+                  <div className="p-6 text-center">
+                      <i className="fas fa-info-circle text-blue-500 text-4xl mb-3"></i>
+                      <p className="text-gray-300 text-sm font-bold">{alertMessage}</p>
+                  </div>
+                  <button 
+                      onClick={() => setAlertMessage(null)}
+                      className="w-full py-4 bg-gray-800 hover:bg-gray-700 text-white font-bold transition text-xs uppercase border-t border-gray-700"
+                  >
+                      ROZUMIEM
+                  </button>
+              </div>
+          </div>
+      )}
     </div>
   );
 }

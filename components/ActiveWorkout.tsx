@@ -41,6 +41,10 @@ export default function ActiveWorkout() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   
+  // Custom Discard Modal
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [showEmptyWarning, setShowEmptyWarning] = useState(false);
+
   const [customDate, setCustomDate] = useState(() => {
     const now = new Date();
     const offset = now.getTimezoneOffset() * 60000;
@@ -67,11 +71,27 @@ export default function ActiveWorkout() {
   if (!workoutData || !id) return <div className="text-center p-10 text-red-500">Nie znaleziono treningu.</div>;
 
   const handleFinish = async () => {
+    // Sprawdzanie czy są jakiekolwiek dane
+    let hasData = false;
+    workoutData.exercises.forEach(ex => {
+      for(let i=1; i<=ex.sets; i++) {
+        if(storage.getTempInput(`input_${id}_${ex.id}_s${i}_kg`) || storage.getTempInput(`input_${id}_${ex.id}_s${i}_reps`)) hasData = true;
+      }
+    });
+
+    if(!hasData && !showEmptyWarning) {
+        setShowEmptyWarning(true);
+        return;
+    }
+    
+    await performFinish();
+  };
+
+  const performFinish = async () => {
     const d = new Date(customDate);
     const dateStr = `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
     let sessionResults: { [key: string]: string } = {};
-    let hasData = false;
 
     workoutData.exercises.forEach(ex => {
       let summaryParts: string[] = [];
@@ -101,11 +121,8 @@ export default function ActiveWorkout() {
         let resStr = summaryParts.join(' | ');
         if(note) resStr += ` [Note: ${note}]`;
         sessionResults[ex.id] = resStr;
-        hasData = true;
       }
     });
-
-    if(!hasData && !window.confirm("Zakończyć pusty trening?")) return;
 
     const timeStr = formatTime(elapsedTime);
     const finalDateStr = `${dateStr} (${timeStr})`;
@@ -127,18 +144,20 @@ export default function ActiveWorkout() {
     storage.clearTempInputs(id, workoutData.exercises);
     setWorkoutStartTime(null);
     stopRestTimer();
+    setShowEmptyWarning(false);
     setShowSuccessModal(true);
   };
 
   const handleDiscard = () => {
-    if (window.confirm("Czy na pewno chcesz odrzucić ten trening? Dane nie zostaną zapisane.")) {
-        stopRestTimer();
-        setWorkoutStartTime(null);
-        sessionStorage.removeItem('workout_start_time');
-        // Tutaj również czyścimy tylko tymczasowe, sticky notes nie są usuwane
-        storage.clearTempInputs(id, workoutData.exercises);
-        navigate('/', { replace: true });
-    }
+    setShowDiscardModal(true);
+  };
+
+  const performDiscard = () => {
+    stopRestTimer();
+    setWorkoutStartTime(null);
+    sessionStorage.removeItem('workout_start_time');
+    storage.clearTempInputs(id, workoutData.exercises);
+    navigate('/', { replace: true });
   };
 
   return (
@@ -213,6 +232,64 @@ export default function ActiveWorkout() {
             </button>
         </div>
       </div>
+
+      {/* DISCARD MODAL */}
+      {showDiscardModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
+              <div className="bg-[#1e1e1e] border border-gray-700 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+                  <div className="bg-red-900/20 p-4 border-b border-red-900/30 flex items-center justify-center">
+                      <i className="fas fa-trash-alt text-red-500 text-3xl"></i>
+                  </div>
+                  <div className="p-6 text-center">
+                      <h3 className="text-xl font-black text-white italic uppercase mb-2">Anulować Trening?</h3>
+                      <p className="text-gray-400 text-sm">Czy na pewno chcesz wyjść bez zapisywania? Wszystkie wprowadzone dane zostaną utracone.</p>
+                  </div>
+                  <div className="flex border-t border-gray-800">
+                      <button 
+                          onClick={() => setShowDiscardModal(false)}
+                          className="flex-1 py-4 text-gray-400 font-bold hover:bg-gray-800 transition text-xs uppercase"
+                      >
+                          Wróć
+                      </button>
+                      <button 
+                          onClick={performDiscard}
+                          className="flex-1 py-4 text-red-500 font-bold hover:bg-red-900/20 transition text-xs uppercase border-l border-gray-800"
+                      >
+                          Anuluj Trening
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* EMPTY WARNING MODAL */}
+      {showEmptyWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
+              <div className="bg-[#1e1e1e] border border-yellow-700 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+                  <div className="bg-yellow-900/20 p-4 border-b border-yellow-900/30 flex items-center justify-center">
+                      <i className="fas fa-exclamation-circle text-yellow-500 text-3xl"></i>
+                  </div>
+                  <div className="p-6 text-center">
+                      <h3 className="text-xl font-black text-white italic uppercase mb-2">Pusty trening</h3>
+                      <p className="text-gray-400 text-sm">Nie wprowadzono żadnych wyników. Czy mimo to chcesz zakończyć i zapisać sesję?</p>
+                  </div>
+                  <div className="flex border-t border-gray-800">
+                      <button 
+                          onClick={() => setShowEmptyWarning(false)}
+                          className="flex-1 py-4 text-gray-400 font-bold hover:bg-gray-800 transition text-xs uppercase"
+                      >
+                          Wróć
+                      </button>
+                      <button 
+                          onClick={performFinish}
+                          className="flex-1 py-4 text-yellow-500 font-bold hover:bg-yellow-900/20 transition text-xs uppercase border-l border-gray-800"
+                      >
+                          Zakończ
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 }

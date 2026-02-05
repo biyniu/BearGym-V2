@@ -130,7 +130,6 @@ export default function AICoachWidget() {
 
     return `
       Jesteś Bear AI - doświadczonym trenerem personalnym z podejściem psychologicznym i stoickim.
-      Nie jesteś krzykaczem. Jesteś mentorem, który buduje trwałą dyscyplinę poprzez zrozumienie, a nie agresję.
       
       DANE PODOPIECZNEGO:
       - Imię: ${clientName || "Użytkownik"}
@@ -145,11 +144,11 @@ export default function AICoachWidget() {
       - Ostatnia aktywność: ${lastActivity ? `${lastActivity.date} (${lastActivity.title})` : "BRAK AKTYWNOŚCI OD DAWNA!"}
       
       TWOJA OSOBOWOŚĆ I ZASADY:
-      1. ANALIZA TYGODNIOWA: Zawsze odnoś się do bieżącego tygodnia. Jeśli jest np. Piątek, a on zrobił 2 treningi (a cel to 3), zmotywuj go, że ma jeszcze weekend, by dobić cel.
-      2. EMPATIA NA PIERWSZYM MIEJSCU: Jeśli użytkownik narzeka, że mu się nie chce, jest zmęczony lub ma zły dzień - ZAAKCEPTUJ TO. Powiedz: "Rozumiem, że masz gorszy dzień", "Wiem, że dzisiaj kanapa wygrywa".
-      3. PRZYPOMNIENIE "DLACZEGO" i LICZBY: Używaj danych wagowych! Jeśli ktoś chce odpuścić, powiedz: "Schudłeś już ${startWeight - currentWeight}kg, zostało tylko ${currentWeight - targetWeight}kg. Nie zmarnuj tego wysiłku". Liczby działają na wyobraźnię.
-      4. METODA MAŁYCH KROKÓW: Zamiast krzyczeć "IDŹ NA TRENING", zaproponuj kompromis. Np. "Rozumiem, że nie masz siły na całość. Zrób tylko rozgrzewkę i jedną serię. Tylko tyle. Jak dalej nie będziesz chciał, to wrócisz do domu". (To trik psychologiczny).
-      5. FILOZOFIA "ROZUMIEM, ALE ZRÓB": Twoje motto to: "Twoje uczucia są ważne, ale Twoje cele są ważniejsze". Bądź spokojny, stanowczy i wspierający.
+      1. FORMATOWANIE: Twoje odpowiedzi muszą być czytelne. Używaj AKAPITÓW (oddzielaj myśli pustą linią). Stosuj WYPUNKTOWANIA (listy) tam gdzie wymieniasz kilka rzeczy. Nie twórz ściany tekstu.
+      2. ANALIZA TYGODNIOWA: Zawsze odnoś się do bieżącego tygodnia. Jeśli jest np. Piątek, a on zrobił 2 treningi (a cel to 3), zmotywuj go, że ma jeszcze weekend, by dobić cel.
+      3. EMPATIA NA PIERWSZYM MIEJSCU: Jeśli użytkownik narzeka, że mu się nie chce, jest zmęczony lub ma zły dzień - ZAAKCEPTUJ TO. Powiedz: "Rozumiem, że masz gorszy dzień", "Wiem, że dzisiaj kanapa wygrywa".
+      4. PRZYPOMNIENIE "DLACZEGO" i LICZBY: Używaj danych wagowych! Jeśli ktoś chce odpuścić, powiedz: "Schudłeś już ${startWeight - currentWeight}kg, zostało tylko ${currentWeight - targetWeight}kg. Nie zmarnuj tego wysiłku". Liczby działają na wyobraźnię.
+      5. METODA MAŁYCH KROKÓW: Zamiast krzyczeć "IDŹ NA TRENING", zaproponuj kompromis. Np. "Rozumiem, że nie masz siły na całość. Zrób tylko rozgrzewkę i jedną serię. Tylko tyle. Jak dalej nie będziesz chciał, to wrócisz do domu".
       6. BRAK WYNIKÓW: Jeśli statystyki są słabe (${strengthCount} treningów vs cel ${targetStrength}), nie ochrzaniaj go bezmyślnie. Zapytaj z troską: "Widzę, że w tym tygodniu trochę słabiej. Co się dzieje? Jak możemy wrócić na tory?".
       
       STYL WYPOWIEDZI:
@@ -168,11 +167,8 @@ export default function AICoachWidget() {
     setLoading(true);
 
     try {
-        // Pobieramy klucz API wstrzyknięty przez vite.config.ts
-        // Teraz szukamy po prostu process.env.API_KEY (który w configu jest mapowany z API_KEY lub VITE_GEMINI_API_KEY)
         const apiKey = process.env.API_KEY;
         
-        // Walidacja klucza
         if (!apiKey || apiKey.length < 10) {
             console.error("Missing API Key.");
             setTimeout(() => {
@@ -210,6 +206,27 @@ export default function AICoachWidget() {
     } finally {
         setLoading(false);
     }
+  };
+
+  // Helper do renderowania tekstu z formatowaniem
+  const renderMessageContent = (text: string) => {
+    return text.split('\n').map((line, index) => {
+      const trimmed = line.trim();
+      if (!trimmed) return <div key={index} className="h-2" />; // Odstęp dla pustych linii
+
+      // Wykrywanie list punktowanych (- , * , • )
+      if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
+         return (
+           <div key={index} className="flex items-start ml-1 mb-1">
+             <span className="mr-2 text-red-400 font-bold">•</span>
+             <span>{trimmed.substring(2)}</span>
+           </div>
+         );
+      }
+
+      // Zwykły akapit
+      return <p key={index} className="mb-2 last:mb-0">{line}</p>;
+    });
   };
 
   return (
@@ -261,12 +278,12 @@ export default function AICoachWidget() {
                 )}
                 {messages.map((m, idx) => (
                     <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
-                        <div className={`max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed shadow-sm ${
+                        <div className={`max-w-[90%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
                             m.role === 'user' 
                             ? 'bg-blue-600 text-white rounded-br-sm' 
                             : 'bg-gray-800 text-gray-200 rounded-bl-sm border border-gray-700'
                         }`}>
-                            {m.text}
+                            {renderMessageContent(m.text)}
                         </div>
                     </div>
                 ))}
@@ -291,7 +308,7 @@ export default function AICoachWidget() {
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                     placeholder="Napisz do trenera..." 
-                    className="flex-grow bg-black/50 text-white text-xs p-3 rounded-xl border border-gray-700 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600/50 transition"
+                    className="flex-grow bg-black/50 text-white text-sm p-3 rounded-xl border border-gray-700 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600/50 transition"
                 />
                 <button 
                     onClick={handleSend}

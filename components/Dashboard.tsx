@@ -112,10 +112,14 @@ export default function Dashboard() {
         
         <button 
             onClick={() => navigate('/cardio')} 
-            className="w-full bg-[#1e1e1e] rounded-xl shadow p-4 text-red-400 hover:text-red-300 flex flex-col items-center justify-center transition border border-transparent hover:border-red-900"
+            className="w-full bg-[#1e1e1e] rounded-xl shadow p-4 text-red-400 hover:text-red-300 flex flex-col items-center justify-center transition border border-transparent hover:border-red-900 group"
         >
-            <i className="fas fa-heartbeat text-2xl mb-2"></i>
-            <span className="text-xs font-black uppercase italic tracking-tighter">Logi Cardio</span>
+            <div className="flex items-center justify-center space-x-3 mb-2">
+                <i className="fas fa-heartbeat text-2xl group-hover:scale-110 transition"></i>
+                <span className="text-gray-600">|</span>
+                <i className="fas fa-universal-access text-2xl text-purple-500 group-hover:scale-110 transition"></i>
+            </div>
+            <span className="text-xs font-black uppercase italic tracking-tighter">Cardio & Mobility</span>
         </button>
       </div>
     </div>
@@ -131,11 +135,11 @@ function ActivityWidget({ workouts, logo }: { workouts: any, logo: string }) {
     const daysShort = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'];
 
     const { dayStatus, lastSessionStats } = useMemo(() => {
-        const status: Record<string, { strength: boolean; cardio: boolean }> = {};
+        const status: Record<string, { strength: boolean; cardio: boolean; mobility: boolean }> = {};
         let allEntries: any[] = [];
         
         const ensureDate = (d: string) => {
-            if (!status[d]) status[d] = { strength: false, cardio: false };
+            if (!status[d]) status[d] = { strength: false, cardio: false, mobility: false };
         };
 
         Object.keys(workouts).forEach(id => {
@@ -153,7 +157,12 @@ function ActivityWidget({ workouts, logo }: { workouts: any, logo: string }) {
             const [y, m, d] = c.date.split('-');
             const datePart = `${d.toString().padStart(2, '0')}.${m.toString().padStart(2, '0')}.${y}`;
             ensureDate(datePart);
-            status[datePart].cardio = true;
+            
+            if (c.type === 'mobility') {
+                status[datePart].mobility = true;
+            } else {
+                status[datePart].cardio = true;
+            }
         });
 
         let stats = null;
@@ -251,36 +260,72 @@ function ActivityWidget({ workouts, logo }: { workouts: any, logo: string }) {
                                 const dStr = day.toString().padStart(2, '0');
                                 const mStr = (month + 1).toString().padStart(2, '0');
                                 const status = dayStatus[`${dStr}.${mStr}.${year}`];
+                                
                                 const hasStrength = status?.strength;
                                 const hasCardio = status?.cardio;
+                                const hasMobility = status?.mobility;
                                 
                                 let activityLabel = "";
-                                if (hasStrength && hasCardio) activityLabel = "TR + CA";
-                                else if (hasStrength) activityLabel = "TRENING";
-                                else if (hasCardio) activityLabel = "CARDIO";
+                                let bgClass = "bg-[#121212]";
+                                let borderClass = "border-gray-800";
+                                
+                                // Priorytety etykiet i kolorów
+                                if (hasStrength) {
+                                    if (hasCardio) activityLabel = "TR + CA";
+                                    else if (hasMobility) activityLabel = "TR + MO";
+                                    else activityLabel = "TRENING";
+                                    borderClass = "border-gray-800"; // Logo takes bg
+                                } else if (hasCardio) {
+                                    if (hasMobility) activityLabel = "CA + MO";
+                                    else activityLabel = "CARDIO";
+                                    bgClass = "bg-red-900/10";
+                                } else if (hasMobility) {
+                                    activityLabel = "MOBILITY";
+                                    bgClass = "bg-purple-900/20";
+                                }
+
+                                const hasAny = hasStrength || hasCardio || hasMobility;
 
                                 return (
-                                    <div key={day} className={`aspect-square rounded-lg flex items-center justify-center relative border transition overflow-hidden border-gray-800 bg-[#121212] ${hasStrength ? 'shadow-[0_0_10px_rgba(239,68,68,0.2)]' : ''}`}>
-                                        {/* Day Number in Top Left - Enhanced visibility with black shadow for readability over logos */}
-                                        <span className={`absolute top-0.5 left-1 text-[8px] font-black z-20 ${hasStrength || hasCardio ? 'text-white drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,1)]' : 'text-gray-700'}`}>
+                                    <div key={day} className={`aspect-square rounded-lg flex items-center justify-center relative border transition overflow-hidden ${borderClass} ${bgClass} ${hasStrength ? 'shadow-[0_0_10px_rgba(239,68,68,0.2)]' : ''}`}>
+                                        {/* Day Number */}
+                                        <span className={`absolute top-0.5 left-1 text-[8px] font-black z-20 ${hasAny ? 'text-white drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,1)]' : 'text-gray-700'}`}>
                                             {day}
                                         </span>
 
-                                        {hasCardio && !hasStrength && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-red-900/10">
-                                                <i className="fas fa-heartbeat text-red-500 text-sm opacity-50"></i>
-                                            </div>
-                                        )}
+                                        {/* Icons Layer */}
                                         {hasStrength && (
                                             <div className="absolute inset-0 w-full h-full">
                                                 <img src={logo} className="w-full h-full object-cover grayscale opacity-30" />
-                                                {hasCardio && <div className="absolute inset-0 bg-red-500/10"></div>}
+                                                {(hasCardio || hasMobility) && <div className="absolute inset-0 bg-black/40"></div>}
                                             </div>
                                         )}
 
-                                        {/* Activity Label at Bottom - Vibrant Red background for max visibility */}
-                                        {(hasStrength || hasCardio) && (
-                                            <div className="absolute bottom-0 left-0 right-0 bg-red-600 py-0.5 z-20 border-t border-red-500/50">
+                                        {/* Only Cardio Icon */}
+                                        {hasCardio && !hasStrength && !hasMobility && (
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <i className="fas fa-heartbeat text-red-500 text-sm opacity-50"></i>
+                                            </div>
+                                        )}
+
+                                        {/* Only Mobility Icon */}
+                                        {hasMobility && !hasStrength && !hasCardio && (
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <i className="fas fa-universal-access text-purple-500 text-sm opacity-60"></i>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Mixed Icons (if not strength, but both extras) */}
+                                        {!hasStrength && hasCardio && hasMobility && (
+                                            <div className="absolute inset-0 flex items-center justify-center space-x-1">
+                                                <i className="fas fa-heartbeat text-red-500 text-[10px] opacity-60"></i>
+                                                <i className="fas fa-universal-access text-purple-500 text-[10px] opacity-60"></i>
+                                            </div>
+                                        )}
+
+                                        {/* Activity Label at Bottom */}
+                                        {hasAny && (
+                                            <div className={`absolute bottom-0 left-0 right-0 py-0.5 z-20 border-t ${hasMobility && !hasStrength && !hasCardio ? 'bg-purple-700 border-purple-500/50' : 'bg-red-600 border-red-500/50'}`}>
                                                 <div className="text-[6px] font-black text-white uppercase tracking-tighter text-center leading-none">
                                                     {activityLabel}
                                                 </div>

@@ -12,6 +12,9 @@ export default function SettingsView() {
   const [isImporting, setIsImporting] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   
+  // Custom Modals
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; message: string; action: () => void } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updatePlanExercises = (workoutId: string, newExercises: Exercise[]) => {
@@ -31,12 +34,20 @@ export default function SettingsView() {
     setEditingExerciseIdx(null);
   };
 
-  const handleDeleteExercise = (idx: number) => {
-    if (!window.confirm("Czy na pewno chcesz usunąć to ćwiczenie?")) return;
+  const handleDeleteExerciseRequest = (idx: number) => {
+      setConfirmModal({
+          isOpen: true,
+          message: "Czy na pewno chcesz usunąć to ćwiczenie z planu?",
+          action: () => performDeleteExercise(idx)
+      });
+  };
+
+  const performDeleteExercise = (idx: number) => {
     const currentExercises = [...workouts[selectedWorkoutId].exercises];
     currentExercises.splice(idx, 1);
     updatePlanExercises(selectedWorkoutId, currentExercises);
     setEditingExerciseIdx(null);
+    setConfirmModal(null);
   };
 
   const handleAddExercise = () => {
@@ -73,13 +84,21 @@ export default function SettingsView() {
     setSelectedWorkoutId(id);
   };
 
-  const handleDeleteWorkout = () => {
+  const handleDeleteWorkoutRequest = () => {
     if (!selectedWorkoutId) return;
-    if (!window.confirm(`Czy na pewno chcesz usunąć cały plan "${workouts[selectedWorkoutId].title}"?`)) return;
+    setConfirmModal({
+        isOpen: true,
+        message: `Czy na pewno chcesz usunąć cały plan "${workouts[selectedWorkoutId].title}"?`,
+        action: performDeleteWorkout
+    });
+  };
+
+  const performDeleteWorkout = () => {
     const newWorkouts = { ...workouts };
     delete newWorkouts[selectedWorkoutId];
     updateWorkouts(newWorkouts);
     setSelectedWorkoutId("");
+    setConfirmModal(null);
   };
 
   const handleMove = (idx: number, dir: number) => {
@@ -109,12 +128,20 @@ export default function SettingsView() {
     URL.revokeObjectURL(url);
   };
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if(!file) return;
-    if(!window.confirm("Zastąpić obecne dane danymi z pliku?")) return;
-    
+  const handleImportRequest = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if(!file) return;
+      
+      setConfirmModal({
+          isOpen: true,
+          message: "UWAGA! Import zastąpi wszystkie obecne dane danymi z pliku. Czy kontynuować?",
+          action: () => performImport(file)
+      });
+  };
+
+  const performImport = (file: File) => {
     setIsImporting(true);
+    setConfirmModal(null);
     const reader = new FileReader();
     reader.onload = async (event) => {
         try {
@@ -332,7 +359,7 @@ export default function SettingsView() {
                 <span className="text-[10px] font-black uppercase italic">{isImporting ? 'Czekaj...' : 'Importuj'}</span>
             </button>
         </div>
-        <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImport} />
+        <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImportRequest} />
       </div>
 
       <div className="bg-[#1e1e1e] rounded-2xl shadow-md p-5">
@@ -356,7 +383,7 @@ export default function SettingsView() {
             {(Object.entries(workouts) as [string, WorkoutPlan][]).map(([id, data]) => (<option key={id} value={id}>{data.title.toUpperCase()}</option>))}
           </select>
           {selectedWorkoutId && (
-            <button onClick={handleDeleteWorkout} className="bg-red-900/20 text-red-500 p-4 rounded-xl border border-red-900/30 hover:bg-red-600 hover:text-white transition active:scale-95">
+            <button onClick={handleDeleteWorkoutRequest} className="bg-red-900/20 text-red-500 p-4 rounded-xl border border-red-900/30 hover:bg-red-600 hover:text-white transition active:scale-95">
               <i className="fas fa-trash-alt"></i>
             </button>
           )}
@@ -369,7 +396,7 @@ export default function SettingsView() {
                  exercise={workouts[selectedWorkoutId].exercises[editingExerciseIdx]} 
                  onSave={handleEditSave} 
                  onCancel={() => setEditingExerciseIdx(null)} 
-                 onDelete={() => handleDeleteExercise(editingExerciseIdx)} 
+                 onDelete={() => handleDeleteExerciseRequest(editingExerciseIdx)} 
                />
              ) : (
                <>
@@ -385,7 +412,7 @@ export default function SettingsView() {
                            {idx > 0 && <button onClick={() => handleMove(idx, -1)} className="text-gray-600 hover:text-white p-1.5 text-[10px]"><i className="fas fa-arrow-up"></i></button>}
                            {idx < workouts[selectedWorkoutId].exercises.length - 1 && <button onClick={() => handleMove(idx, 1)} className="text-gray-600 hover:text-white p-1.5 text-[10px]"><i className="fas fa-arrow-down"></i></button>}
                          </div>
-                         <button onClick={(e) => { e.stopPropagation(); handleDeleteExercise(idx); }} className="text-red-900 hover:text-red-500 p-2 transition"><i className="fas fa-times-circle"></i></button>
+                         <button onClick={(e) => { e.stopPropagation(); handleDeleteExerciseRequest(idx); }} className="text-red-900 hover:text-red-500 p-2 transition"><i className="fas fa-times-circle"></i></button>
                        </div>
                      </div>
                    ))}
@@ -398,6 +425,35 @@ export default function SettingsView() {
           </div>
         )}
       </div>
+
+      {/* CONFIRM MODAL */}
+      {confirmModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-6 animate-fade-in">
+              <div className="bg-[#1e1e1e] border border-gray-700 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+                  <div className="bg-red-900/20 p-4 border-b border-red-900/30 flex items-center justify-center">
+                      <i className="fas fa-exclamation-triangle text-red-500 text-3xl"></i>
+                  </div>
+                  <div className="p-6 text-center">
+                      <h3 className="text-xl font-black text-white italic uppercase mb-2">Potwierdź</h3>
+                      <p className="text-gray-400 text-sm font-medium">{confirmModal.message}</p>
+                  </div>
+                  <div className="flex border-t border-gray-800">
+                      <button 
+                          onClick={() => setConfirmModal(null)}
+                          className="flex-1 py-4 text-gray-400 font-bold hover:bg-gray-800 transition text-xs uppercase"
+                      >
+                          Anuluj
+                      </button>
+                      <button 
+                          onClick={confirmModal.action}
+                          className="flex-1 py-4 text-red-500 font-bold hover:bg-red-900/20 transition text-xs uppercase border-l border-gray-800"
+                      >
+                          Wykonaj
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 }

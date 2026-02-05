@@ -2,22 +2,150 @@
 import React, { useState, useContext, useRef, useEffect } from 'react';
 import { AppContext } from '../App';
 import { GoogleGenAI } from "@google/genai";
+import { CLIENT_CONFIG } from '../constants';
+import { storage } from '../services/storage';
 
 export default function AICoachWidget() {
-  const { clientName, workouts, clientCode } = useContext(AppContext);
+  const { clientName, workouts, clientCode, settings } = useContext(AppContext);
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<{role: 'user'|'model', text: string}[]>([]);
+  
+  // Ładowanie historii z localStorage przy starcie
+  const [messages, setMessages] = useState<{role: 'user'|'model', text: string}[]>(() => {
+      return storage.getChatHistory();
+  });
+  
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Zapisywanie historii do localStorage przy każdej zmianie messages
   useEffect(() => {
+    storage.saveChatHistory(messages);
     if (messagesEndRef.current) {
         messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isOpen]);
 
   const toggleChat = () => setIsOpen(!isOpen);
+
+  const clearHistory = () => {
+      if(window.confirm("Czy na pewno chcesz wyczyścić pamięć trenera? Zapomni o czym rozmawialiście wcześniej.")) {
+          setMessages([]);
+          storage.clearChatHistory();
+      }
+  };
+
+  // Funkcja pomocnicza: Pobiera wszystkie aktywności posortowane chronologicznie
+  const getAllActivities = () => {
+    const allActivities: { date: string, timestamp: number, type: 'strength'|'cardio', title: string }[] = [];
+    
+    // 1. Treningi siłowe
+    Object.keys(workouts).forEach(id => {
+        const history = storage.getHistory(id);
+        history.forEach(h => {
+            allActivities.push({
+                date: h.date,
+                timestamp: h.timestamp || 0,
+                type: 'strength',
+                title: workouts[id].title
+            });
+        });
+    });
+
+    // 2. Cardio
+    const cardio = storage.getCardioSessions();
+    cardio.forEach(c => {
+        // Konwersja daty "YYYY-MM-DD" na timestamp (przyjmujemy południe)
+        const d = new Date(c.date);
+        allActivities.push({
+            date: c.date,
+            timestamp: d.getTime(),
+            type: 'cardio',
+            title: c.type.toUpperCase()
+        });
+    });
+
+    // Sortowanie malejąco (najnowsze pierwsze)
+    return allActivities.sort((a, b) => b.timestamp - a.timestamp);
+  };
+
+  const getSystemInstruction = () => {
+    const activities = getAllActivities();
+    const lastActivity = activities.length > 0 ? activities[0] : null;
+    
+    // Obliczanie statystyk z ostatnich 7 dni
+    const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const thisWeekActivities = activities.filter(a => a.timestamp > oneWeekAgo);
+    
+    const strengthCount = thisWeekActivities.filter(a => a.type === 'strength').length;
+    const cardioCount = thisWeekActivities.filter(a => a.type === 'cardio').length;
+
+    const targetStrength = settings.targetWorkoutsPerWeek || 3;
+    const targetCardio = settings.targetCardioPerWeek || 3;
+
+    // Analiza wagi
+    const startWeight = parseFloat(settings.userInitialWeight || '0');
+    const currentWeight = parseFloat(settings.userCurrentWeight || '0');
+    const targetWeight = parseFloat(settings.userTargetWeight || '0');
+    let weightContext = "";
+    
+    if (startWeight > 0 && currentWeight > 0 && targetWeight > 0) {
+        const totalToLose = startWeight - targetWeight; // np. 10kg
+        const lostSoFar = startWeight - currentWeight; // np. 4kg
+        const leftToLose = currentWeight - targetWeight; // np. 6kg
+        
+        // Sprawdzenie czy cel to redukcja czy masa
+        if (startWeight > targetWeight) {
+            // REDUKCJA
+            weightContext = `POSTĘPY WAGOWE (REDUKCJA):
+            - Start: ${startWeight}kg, Teraz: ${currentWeight}kg, Cel: ${targetWeight}kg.
+            - Schudł już: ${lostSoFar.toFixed(1)}kg.
+            - Zostało do celu: ${leftToLose.toFixed(1)}kg.
+            - Jeśli schudł > 0, pochwal go ("Już ${lostSoFar.toFixed(1)}kg mniej!").
+            - Jeśli przytył (current > start), delikatnie zapytaj co się dzieje, ale bez hejtu.`;
+        } else {
+            // MASA
+            const gainedSoFar = currentWeight - startWeight;
+            const leftToGain = targetWeight - currentWeight;
+            weightContext = `POSTĘPY WAGOWE (MASA):
+            - Start: ${startWeight}kg, Teraz: ${currentWeight}kg, Cel: ${targetWeight}kg.
+            - Zyskał już: ${gainedSoFar.toFixed(1)}kg.
+            - Zostało do celu: ${leftToGain.toFixed(1)}kg.`;
+        }
+    } else {
+        weightContext = "Brak pełnych danych wagowych (Start/Teraz/Cel) w ustawieniach. Jeśli użytkownik pyta o wagę, poproś by uzupełnił te dane w Ustawieniach.";
+    }
+
+    return `
+      Jesteś Bear AI - doświadczonym trenerem personalnym z podejściem psychologicznym i stoickim.
+      Nie jesteś krzykaczem. Jesteś mentorem, który buduje trwałą dyscyplinę poprzez zrozumienie, a nie agresję.
+      
+      DANE PODOPIECZNEGO:
+      - Imię: ${clientName || "Użytkownik"}
+      - Cel główny: ${settings.userGoal || "Brak (zapytaj o cel, to kluczowe)"}
+      - Trudności/Słabości: ${settings.userDifficulties || "Brak (zapytaj co jest trudne)"}
+      
+      ${weightContext}
+      
+      STATYSTYKI (Ostatnie 7 dni):
+      - Treningi siłowe: ${strengthCount} / Cel: ${targetStrength}
+      - Cardio: ${cardioCount} / Cel: ${targetCardio}
+      - Ostatnia aktywność: ${lastActivity ? `${lastActivity.date} (${lastActivity.title})` : "BRAK AKTYWNOŚCI OD DAWNA!"}
+      
+      TWOJA OSOBOWOŚĆ I ZASADY:
+      1. EMPATIA NA PIERWSZYM MIEJSCU: Jeśli użytkownik narzeka, że mu się nie chce, jest zmęczony lub ma zły dzień - ZAAKCEPTUJ TO. Powiedz: "Rozumiem, że masz gorszy dzień", "Wiem, że dzisiaj kanapa wygrywa".
+      2. PRZYPOMNIENIE "DLACZEGO" i LICZBY: Używaj danych wagowych! Jeśli ktoś chce odpuścić, powiedz: "Schudłeś już ${startWeight - currentWeight}kg, zostało tylko ${currentWeight - targetWeight}kg. Nie zmarnuj tego wysiłku". Liczby działają na wyobraźnię.
+      3. METODA MAŁYCH KROKÓW: Zamiast krzyczeć "IDŹ NA TRENING", zaproponuj kompromis. Np. "Rozumiem, że nie masz siły na całość. Zrób tylko rozgrzewkę i jedną serię. Tylko tyle. Jak dalej nie będziesz chciał, to wrócisz do domu". (To trik psychologiczny).
+      4. FILOZOFIA "ROZUMIEM, ALE ZRÓB": Twoje motto to: "Twoje uczucia są ważne, ale Twoje cele są ważniejsze". Bądź spokojny, stanowczy i wspierający.
+      5. SŁABOŚCI: Jeśli użytkownik wspomina o słabościach ("${settings.userDifficulties}"), nie oceniaj go. Wytłumacz mu mechanizm, dlaczego tak się dzieje i jak to pokonać.
+      6. BRAK WYNIKÓW: Jeśli statystyki są słabe (${strengthCount} treningów vs cel ${targetStrength}), nie ochrzaniaj go bezmyślnie. Zapytaj z troską: "Widzę, że ostatnio odpuściłeś. Co się dzieje? Jak możemy wrócić na tory?".
+      
+      STYL WYPOWIEDZI:
+      - Mów jak do przyjaciela, któremu dobrze życzysz.
+      - Unikaj wykrzykników i agresji.
+      - Bądź konkretny, ale ciepły.
+    `;
+  };
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -28,44 +156,27 @@ export default function AICoachWidget() {
     setLoading(true);
 
     try {
-        // Kontekst dla AI
-        const systemInstruction = `
-            Jesteś Bear AI - surowym, ale motywującym trenerem personalnym.
-            Twój podopieczny to: ${clientName} (ID: ${clientCode}).
-            Liczba planów treningowych: ${Object.keys(workouts).length}.
-            Styl: Krótki, żołnierski, motywujący, używaj slangu siłownianego (masa, rzeźba, pompa).
-            Nie pisz elaboratów. Max 3 zdania. Zmuś go do działania.
-        `;
-
-        const apiKey = process.env.API_KEY;
-        // Jeśli nie ma klucza API, symulujemy odpowiedź (żeby UI działało)
-        if (!apiKey) {
+        const apiKey = CLIENT_CONFIG.geminiApiKey;
+        
+        // Tryb demo
+        if (!apiKey || apiKey.length < 10) {
             setTimeout(() => {
-                const responses = [
-                    "Nie gadaj, tylko pakuj! Ten ciężar sam się nie podniesie!",
-                    "Wymówki spalają zero kalorii. Ruszaj na trening!",
-                    "Widzę, że masz dzisiaj słabszy dzień. Ale wiesz co? Mistrzowie trenują nawet jak im się nie chce.",
-                    "Odłóż ten batonik! Cukier to wróg. Zjedz białko i idź spać.",
-                    "Plan sam się nie zrobi. Jazda na siłownię, już!"
-                ];
-                const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-                setMessages(prev => [...prev, { role: 'model', text: randomResponse }]);
+                setMessages(prev => [...prev, { role: 'model', text: "Błąd: Brak klucza API w konfiguracji." }]);
                 setLoading(false);
             }, 1000);
             return;
         }
 
-        // Prawdziwe połączenie z Gemini
         const ai = new GoogleGenAI({ apiKey });
         
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+            model: CLIENT_CONFIG.geminiModel || "gemini-2.5-flash", 
             contents: [
                 ...messages.map(m => ({ role: m.role, parts: [{ text: m.text }] })),
                 { role: 'user', parts: [{ text: userMsg }] }
             ],
             config: {
-                systemInstruction: systemInstruction,
+                systemInstruction: getSystemInstruction(),
             }
         });
 
@@ -73,10 +184,14 @@ export default function AICoachWidget() {
         
         if (text) {
             setMessages(prev => [...prev, { role: 'model', text: text }]);
+        } else {
+             setMessages(prev => [...prev, { role: 'model', text: "Coś poszło nie tak, ale pamiętaj o swoim celu." }]);
         }
 
-    } catch (e) {
-        setMessages(prev => [...prev, { role: 'model', text: "Błąd połączenia z bazą. Ale to nie zwalnia Cię z treningu! (Sprawdź API Key)" }]);
+    } catch (e: any) {
+        console.error("Gemini Error:", e);
+        const errorMessage = e.message || JSON.stringify(e);
+        setMessages(prev => [...prev, { role: 'model', text: `Błąd: ${errorMessage}` }]);
     } finally {
         setLoading(false);
     }
@@ -88,7 +203,7 @@ export default function AICoachWidget() {
       {!isOpen && (
         <button 
           onClick={toggleChat}
-          className="fixed bottom-24 right-6 z-40 bg-red-600 text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center animate-pulse border-2 border-white hover:scale-110 transition"
+          className="fixed bottom-24 right-6 z-40 bg-gradient-to-br from-red-600 to-red-800 text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center animate-pulse border-2 border-white/20 hover:scale-110 transition active:scale-95"
         >
           <i className="fas fa-robot text-2xl"></i>
         </button>
@@ -96,41 +211,54 @@ export default function AICoachWidget() {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 w-80 bg-[#1e1e1e] border border-gray-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[500px] animate-fade-in-up">
+        <div className="fixed bottom-24 right-6 z-50 w-80 sm:w-96 bg-[#161616] border border-gray-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[60vh] animate-fade-in-up ring-1 ring-white/10">
             {/* Header */}
-            <div className="bg-red-600 p-4 flex justify-between items-center">
-                <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-red-600 font-bold">
-                        <i className="fas fa-robot"></i>
+            <div className="bg-gradient-to-r from-red-700 to-red-900 p-4 flex justify-between items-center shadow-lg">
+                <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-red-700 font-bold border-2 border-red-900">
+                        <i className="fas fa-bear-tracking text-xl"></i>
                     </div>
                     <div>
-                        <h3 className="text-white font-black italic text-sm">BEAR AI COACH</h3>
+                        <h3 className="text-white font-black italic text-sm tracking-wide">BEAR AI COACH</h3>
                         <p className="text-[10px] text-red-200 uppercase font-bold flex items-center">
                             <span className="w-2 h-2 bg-green-400 rounded-full mr-1 animate-pulse"></span> Online
                         </p>
                     </div>
                 </div>
-                <button onClick={toggleChat} className="text-white hover:text-gray-200"><i className="fas fa-times"></i></button>
+                <div className="flex items-center space-x-2">
+                    <button onClick={clearHistory} className="text-white/60 hover:text-white transition p-2" title="Wyczyść pamięć">
+                        <i className="fas fa-trash-alt text-xs"></i>
+                    </button>
+                    <button onClick={toggleChat} className="text-white/80 hover:text-white transition transform hover:rotate-90 p-2">
+                        <i className="fas fa-times text-lg"></i>
+                    </button>
+                </div>
             </div>
 
             {/* Messages */}
-            <div className="flex-grow p-4 overflow-y-auto space-y-3 bg-[#121212] h-64">
+            <div className="flex-grow p-4 overflow-y-auto space-y-3 bg-[#121212] h-80 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent">
                 {messages.length === 0 && (
-                    <div className="text-center text-gray-600 text-xs mt-4">
-                        <p>Tutaj Twój osobisty kat.</p>
-                        <p>Napisz, że Ci się nie chce, a zobaczysz co się stanie.</p>
+                    <div className="text-center text-gray-500 text-xs mt-8 px-4">
+                        <i className="fas fa-dumbbell text-4xl mb-3 opacity-20"></i>
+                        <p className="mb-2 font-bold text-gray-400">Widzę Twoje statystyki.</p>
+                        <p>Jestem tu, żeby Ci pomóc osiągnąć Twój cel.</p>
                     </div>
                 )}
                 {messages.map((m, idx) => (
-                    <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] p-3 rounded-xl text-xs font-medium ${m.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-200 rounded-bl-none border border-gray-700'}`}>
+                    <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
+                        <div className={`max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed shadow-sm ${
+                            m.role === 'user' 
+                            ? 'bg-blue-600 text-white rounded-br-sm' 
+                            : 'bg-gray-800 text-gray-200 rounded-bl-sm border border-gray-700'
+                        }`}>
                             {m.text}
                         </div>
                     </div>
                 ))}
                 {loading && (
-                    <div className="flex justify-start">
-                        <div className="bg-gray-800 text-gray-400 p-3 rounded-xl rounded-bl-none text-xs flex space-x-1">
+                    <div className="flex justify-start animate-fade-in">
+                        <div className="bg-gray-800 text-gray-400 p-3 rounded-2xl rounded-bl-sm text-xs flex space-x-1 items-center border border-gray-700">
+                            <span className="text-[9px] uppercase font-bold mr-2">Analizuję...</span>
                             <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce"></div>
                             <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce delay-75"></div>
                             <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce delay-150"></div>
@@ -141,19 +269,19 @@ export default function AICoachWidget() {
             </div>
 
             {/* Input */}
-            <div className="p-3 bg-[#1e1e1e] border-t border-gray-700 flex space-x-2">
+            <div className="p-3 bg-[#1e1e1e] border-t border-gray-800 flex space-x-2">
                 <input 
                     type="text" 
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder="Wpisz wiadomość..." 
-                    className="flex-grow bg-black text-white text-xs p-3 rounded-xl border border-gray-800 outline-none focus:border-red-600"
+                    placeholder="Napisz do trenera..." 
+                    className="flex-grow bg-black/50 text-white text-xs p-3 rounded-xl border border-gray-700 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600/50 transition"
                 />
                 <button 
                     onClick={handleSend}
                     disabled={loading}
-                    className="bg-red-600 hover:bg-red-700 text-white w-10 h-10 rounded-xl flex items-center justify-center transition"
+                    className="bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white w-10 h-10 rounded-xl flex items-center justify-center transition shadow-lg active:scale-95"
                 >
                     <i className="fas fa-paper-plane text-xs"></i>
                 </button>

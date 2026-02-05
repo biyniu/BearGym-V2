@@ -84,6 +84,15 @@ export const storage = {
   getStickyNote: (wId: string, exId: string) => localStorage.getItem(`${CLIENT_CONFIG.storageKey}_sticky_${wId}_${exId}`) || '',
   saveStickyNote: (wId: string, exId: string, v: string) => localStorage.setItem(`${CLIENT_CONFIG.storageKey}_sticky_${wId}_${exId}`, v),
 
+  // Chat History
+  getChatHistory: () => JSON.parse(localStorage.getItem(`${CLIENT_CONFIG.storageKey}_chat_history`) || '[]'),
+  saveChatHistory: (msgs: any[]) => {
+      // Limitujemy historię do ostatnich 50 wiadomości, aby nie zapchać pamięci/tokenów
+      const limited = msgs.slice(-50); 
+      localStorage.setItem(`${CLIENT_CONFIG.storageKey}_chat_history`, JSON.stringify(limited));
+  },
+  clearChatHistory: () => localStorage.removeItem(`${CLIENT_CONFIG.storageKey}_chat_history`),
+
   clearTempInputs: (workoutId: string, exercises: any[]) => {
     exercises.forEach(ex => {
       // UWAGA: Usuwamy tymczasowe notatki sesji, ale sticky notes zostają w osobnych kluczach

@@ -10,6 +10,7 @@ export default function SettingsView() {
   const [selectedWorkoutId, setSelectedWorkoutId] = useState<string>("");
   const [editingExerciseIdx, setEditingExerciseIdx] = useState<number | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -128,13 +129,114 @@ export default function SettingsView() {
     reader.readAsText(file);
   };
 
+  const confirmProfileSave = () => {
+    // Ta funkcja służy tylko UX, bo updateSettings zapisuje na bieżąco.
+    // Daje użytkownikowi poczucie, że "zatwierdził" zmiany.
+    setSaveStatus("Zapisano pomyślnie!");
+    setTimeout(() => setSaveStatus(null), 3000);
+  };
+
   return (
     <div className="animate-fade-in pb-10 relative">
       <h2 className="text-2xl font-black text-white mb-6 text-center italic uppercase tracking-tighter">Ustawienia</h2>
 
+      {/* SEKCJA PROFILU */}
+      <div className="bg-[#1e1e1e] rounded-2xl shadow-md p-5 mb-6 border-l-4 border-yellow-500">
+        <h3 className="text-sm font-black text-white mb-4 flex items-center uppercase italic">
+          <i className="fas fa-user-circle text-yellow-500 mr-2"></i>Twój Profil i Cele
+        </h3>
+        <div className="space-y-4">
+            <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Główny Cel (np. Redukcja 10kg, Masa):</label>
+                <textarea 
+                    value={settings.userGoal || ''}
+                    onChange={(e) => updateSettings({ ...settings, userGoal: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white text-xs outline-none focus:border-yellow-500"
+                    placeholder="Opisz swój cel..."
+                    rows={2}
+                />
+            </div>
+            
+            {/* NOWA SEKCJA WAGOWA */}
+            <div className="grid grid-cols-3 gap-3 bg-gray-900/50 p-3 rounded-xl border border-gray-800">
+                <div>
+                    <label className="text-[9px] font-bold text-gray-500 uppercase block mb-1 text-center">Waga Start</label>
+                    <input 
+                        type="number"
+                        step="0.1"
+                        placeholder="kg"
+                        value={settings.userInitialWeight || ''}
+                        onChange={(e) => updateSettings({ ...settings, userInitialWeight: e.target.value })}
+                        className="w-full bg-black border border-gray-700 rounded-lg p-2 text-white text-center font-bold text-xs focus:border-yellow-500 outline-none"
+                    />
+                </div>
+                <div>
+                    <label className="text-[9px] font-bold text-yellow-500 uppercase block mb-1 text-center">Waga Teraz</label>
+                    <input 
+                        type="number"
+                        step="0.1"
+                        placeholder="kg"
+                        value={settings.userCurrentWeight || ''}
+                        onChange={(e) => updateSettings({ ...settings, userCurrentWeight: e.target.value })}
+                        className="w-full bg-black border border-gray-700 rounded-lg p-2 text-yellow-400 text-center font-bold text-xs focus:border-yellow-500 outline-none"
+                    />
+                </div>
+                <div>
+                    <label className="text-[9px] font-bold text-green-500 uppercase block mb-1 text-center">Waga Cel</label>
+                    <input 
+                        type="number"
+                        step="0.1"
+                        placeholder="kg"
+                        value={settings.userTargetWeight || ''}
+                        onChange={(e) => updateSettings({ ...settings, userTargetWeight: e.target.value })}
+                        className="w-full bg-black border border-gray-700 rounded-lg p-2 text-green-400 text-center font-bold text-xs focus:border-yellow-500 outline-none"
+                    />
+                </div>
+            </div>
+
+            <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Twoje Trudności / Słabości (np. słodycze, brak czasu):</label>
+                <textarea 
+                    value={settings.userDifficulties || ''}
+                    onChange={(e) => updateSettings({ ...settings, userDifficulties: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white text-xs outline-none focus:border-yellow-500"
+                    placeholder="Z czym masz największy problem?"
+                    rows={2}
+                />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Cel: Treningi / Tydz.</label>
+                    <input 
+                        type="number"
+                        value={settings.targetWorkoutsPerWeek || 3}
+                        onChange={(e) => updateSettings({ ...settings, targetWorkoutsPerWeek: parseInt(e.target.value) })}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white text-center font-bold focus:border-yellow-500 outline-none"
+                    />
+                </div>
+                <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Cel: Cardio / Tydz.</label>
+                    <input 
+                        type="number"
+                        value={settings.targetCardioPerWeek || 3}
+                        onChange={(e) => updateSettings({ ...settings, targetCardioPerWeek: parseInt(e.target.value) })}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white text-center font-bold focus:border-yellow-500 outline-none"
+                    />
+                </div>
+            </div>
+            
+            <button 
+                onClick={confirmProfileSave}
+                className="w-full mt-4 bg-yellow-600 hover:bg-yellow-700 text-white font-black py-3 rounded-xl shadow-lg transition transform active:scale-95 uppercase italic text-xs tracking-widest flex items-center justify-center"
+            >
+                {saveStatus ? <><i className="fas fa-check mr-2"></i> {saveStatus}</> : "ZATWIERDŹ CELE I PROFIL"}
+            </button>
+        </div>
+      </div>
+
       <div className="bg-[#1e1e1e] rounded-2xl shadow-md p-5 mb-6 border-l-4 border-red-600">
         <h3 className="text-sm font-black text-white mb-4 flex items-center uppercase italic">
-          <i className="fas fa-magic text-red-500 mr-2"></i>Automatyzacja
+          <i className="fas fa-magic text-red-500 mr-2"></i>Automatyzacja i Dźwięki
         </h3>
         <div className="space-y-3">
             <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800">
@@ -150,23 +252,7 @@ export default function SettingsView() {
                 </button>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800">
-                <div>
-                <div className="text-[11px] font-black text-white uppercase italic tracking-widest">Wibracja (Android)</div>
-                <div className="text-[9px] text-gray-500 font-bold uppercase">Długa, pojedyncza wibracja</div>
-                </div>
-                <button 
-                onClick={() => {
-                   const newVal = !settings.vibration;
-                   updateSettings({ ...settings, vibration: newVal });
-                   // Używamy window.navigator.vibrate(1000) - pojedyncza wibracja, bardziej niezawodna na Androidzie
-                   if(newVal && typeof window.navigator.vibrate === 'function') window.navigator.vibrate(1000);
-                }}
-                className={`w-12 h-6 rounded-full transition-all relative shadow-inner ${settings.vibration ? 'bg-red-600' : 'bg-gray-700'}`}
-                >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.vibration ? 'left-7' : 'left-1'}`}></div>
-                </button>
-            </div>
+            {/* USUNIĘTO SEKCJĘ WIBRACJI ZGODNIE Z ŻYCZENIEM */}
 
             <div className="p-3 bg-gray-900 rounded-xl border border-gray-800">
                <div className="mb-2">
@@ -218,13 +304,6 @@ export default function SettingsView() {
                    <i className="fas fa-volume-up text-gray-500 text-xs"></i>
                </div>
             </div>
-
-            <button 
-                onClick={() => alert("Ustawienia zostały zapisane!")}
-                className="w-full bg-green-700 hover:bg-green-600 text-white font-bold py-3 rounded-xl uppercase text-xs tracking-widest shadow-lg mt-2"
-            >
-                Zapisz Ustawienia
-            </button>
         </div>
       </div>
 

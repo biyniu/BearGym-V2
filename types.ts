@@ -45,7 +45,16 @@ export interface AppSettings {
   volume: number;
   soundType: 'bell' | 'double_bell' | 'chord' | 'cosmic' | 'gong' | 'victory' | 'siren' | 'school_bell';
   autoRestTimer: boolean;
-  vibration: boolean;
+  // Usunięto pole vibration
+  // Nowe pola profilowe
+  userGoal?: string;
+  userDifficulties?: string;
+  targetWorkoutsPerWeek?: number;
+  targetCardioPerWeek?: number;
+  // Pola wagowe do motywacji
+  userInitialWeight?: string;
+  userCurrentWeight?: string;
+  userTargetWeight?: string;
 }
 
 export interface BodyMeasurement {

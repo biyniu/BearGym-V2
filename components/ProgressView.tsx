@@ -27,7 +27,11 @@ export default function ProgressView() {
         const resultStr = entry.results[exerciseId];
         if (!resultStr) return null;
 
-        const matches = resultStr.matchAll(/(\d+(?:[.,]\d+)?)\s*kg/gi);
+        // POPRAWKA: Ignorowanie treści w nawiasach kwadratowych i okrągłych (Notatki)
+        let cleanResultStr = resultStr.split('[')[0];
+        cleanResultStr = cleanResultStr.split('(')[0];
+
+        const matches = cleanResultStr.matchAll(/(\d+(?:[.,]\d+)?)\s*kg/gi);
         let maxWeight = 0;
         let found = false;
 
@@ -100,7 +104,7 @@ export default function ProgressView() {
       <div className="grid grid-cols-1 gap-3">
           {currentWorkout?.exercises.map((ex) => {
               const data = getExerciseData(selectedWorkoutId, ex.id);
-              if (!data || data.length < 2) return null; 
+              if (!data || data.length === 0) return null; // Zmieniono z < 2 na === 0
 
               const weights = data.map((d: any) => d.weight);
               const maxVal = Math.max(...weights);
@@ -121,7 +125,7 @@ export default function ProgressView() {
                               <XAxis dataKey="date" stroke="#666" tick={{fill: '#888', fontSize: 10}} tickMargin={10} padding={{ left: 25, right: 25 }} />
                               <YAxis hide={true} domain={[domainMin, domainMax]} />
                               <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid #444', borderRadius: '4px', fontSize: '10px' }} itemStyle={{ color: '#fff' }} formatter={(v: any) => [`${v} kg`, '']} />
-                              <Line type="monotone" dataKey="weight" stroke="#ef4444" strokeWidth={2} dot={{ r: 4, fill: '#ef4444', strokeWidth: 2, stroke: '#1e1e1e' }} activeDot={{ r: 6, fill: '#fff' }} label={<CustomLabel />} />
+                              <Line type="monotone" dataKey="weight" stroke="#ef4444" strokeWidth={2} dot={{ r: 4, fill: '#ef4444', strokeWidth: 2, stroke: '#1e1e1e' }} activeDot={{ r: 6, fill: '#fff' }} label={<CustomLabel />} isAnimationActive={false} />
                               </LineChart>
                           </ResponsiveContainer>
                       </div>
@@ -135,7 +139,7 @@ export default function ProgressView() {
         <div ref={reportRef} className="w-[210mm] bg-[#121212] text-white font-sans p-8">
             <h1 className="text-3xl font-bold border-b-4 border-red-600 pb-4 mb-8">BEAR GYM - RAPORT POSTĘPÓW</h1>
             {(Object.entries(workouts) as [string, WorkoutPlan][]).map(([wId, plan]) => {
-                const hasData = plan.exercises.some(ex => getExerciseData(wId, ex.id).length >= 2);
+                const hasData = plan.exercises.some(ex => getExerciseData(wId, ex.id).length >= 1);
                 if (!hasData) return null;
                 return (
                     <section key={wId} className="mb-8 break-inside-avoid">
@@ -143,7 +147,7 @@ export default function ProgressView() {
                         <div className="grid grid-cols-2 gap-4">
                             {plan.exercises.map(ex => {
                                 const data = getExerciseData(wId, ex.id);
-                                if (data.length < 2) return null;
+                                if (data.length === 0) return null;
                                 return (
                                     <div key={ex.id} className="bg-gray-900 p-2 border border-gray-800 rounded">
                                         <div className="text-[10px] font-bold text-gray-500 mb-1">{ex.name}</div>

@@ -303,7 +303,26 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index }: { exercise: Exe
     return history[0].results[exercise.id] || '';
   }, [history, exercise.id]);
 
-  // Stan notatki: najpierw sprawdź tymczasową, jeśli pusta - sprawdź trwałą (Sticky Note)
+  // Parsowanie poprzednich wyników dla placeholderów
+  const previousSets = useMemo(() => {
+    if(!lastResult) return [];
+    // Usuwamy notatkę przed parsowaniem zestawów, aby nie zakłócała logiki
+    const cleanResult = lastResult.replace(/\[Note:.*?\]/g, ''); 
+    const sets = cleanResult.split('|');
+    return sets.map(s => {
+        const kgMatch = s.match(/(\d+(?:[.,]\d+)?)\s*kg/i);
+        const repsMatch = s.match(/(?:x\s*|(\d+)\s*p)(\d+)?/i); 
+        const timeMatch = s.match(/(\d+)\s*s/i);
+
+        return {
+            kg: kgMatch ? kgMatch[1] : '',
+            reps: repsMatch ? (repsMatch[2] || repsMatch[1]) : '',
+            time: timeMatch ? timeMatch[1] : ''
+        };
+    });
+  }, [lastResult]);
+
+  // Stan notatki
   const [note, setNote] = useState(() => {
     const temp = storage.getTempInput(`note_${workoutId}_${exercise.id}`);
     if (temp) return temp;
@@ -318,29 +337,39 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index }: { exercise: Exe
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    // Inicjalizacja z AUTO-UZUPEŁNIANIEM (Auto-Fill) z poprzedniego treningu
     const newValues: Record<string, string> = {};
-    const kgMatches = Array.from(lastResult.matchAll(/(\d+(?:[.,]\d+)?)\s*kg/gi));
-    
     for(let i=1; i<=exercise.sets; i++) {
       const uidKg = `input_${workoutId}_${exercise.id}_s${i}_kg`;
       const uidReps = `input_${workoutId}_${exercise.id}_s${i}_reps`;
+      const uidTime = `input_${workoutId}_${exercise.id}_s${i}_time`;
       
-      const savedKg = storage.getTempInput(uidKg);
-      const savedReps = storage.getTempInput(uidReps);
+      let savedKg = storage.getTempInput(uidKg);
+      let savedReps = storage.getTempInput(uidReps);
+      let savedTime = storage.getTempInput(uidTime);
 
-      // Kopiujemy tylko wagę jeśli nie ma zapisanej tymczasowej
-      if (!savedKg && kgMatches[i-1]) {
-        storage.saveTempInput(uidKg, kgMatches[i-1][1]);
-        newValues[uidKg] = kgMatches[i-1][1];
-      } else {
-        newValues[uidKg] = savedKg;
+      // AUTO-FILL LOGIC: Jeśli puste, weź z historii
+      const prevSet = previousSets[i-1];
+      
+      if (!savedKg && prevSet?.kg) {
+          savedKg = prevSet.kg;
+          storage.saveTempInput(uidKg, savedKg); // Zapisujemy od razu jako temp
+      }
+      if (!savedReps && prevSet?.reps) {
+          savedReps = prevSet.reps;
+          storage.saveTempInput(uidReps, savedReps);
+      }
+      if (!savedTime && prevSet?.time) {
+          savedTime = prevSet.time;
+          storage.saveTempInput(uidTime, savedTime);
       }
 
-      // Powtórzenia tylko jeśli użytkownik już coś wpisał w tej sesji, NIE z historii
+      newValues[uidKg] = savedKg;
       newValues[uidReps] = savedReps;
+      newValues[uidTime] = savedTime;
     }
     setInputValues(prev => ({ ...prev, ...newValues }));
-  }, [lastResult, workoutId, exercise.id, exercise.sets]);
+  }, [workoutId, exercise.id, exercise.sets, previousSets]); // Dodano previousSets do dependency
 
   const handleInputChange = (uid: string, value: string) => {
     storage.saveTempInput(uid, value);
@@ -349,10 +378,7 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index }: { exercise: Exe
   
   const handleNoteChange = (val: string) => {
       setNote(val);
-      // Zapisujemy w obu miejscach:
-      // 1. Temp (dla bieżącej sesji treningowej i logu)
       storage.saveTempInput(`note_${workoutId}_${exercise.id}`, val);
-      // 2. Sticky (trwałe, do wczytania przy następnym razie)
       storage.saveStickyNote(workoutId, exercise.id, val);
   };
 
@@ -399,6 +425,7 @@ const ExerciseCard = React.memo(({ exercise, workoutId, index }: { exercise: Exe
           const setNum = sIdx + 1;
           const uId = `input_${workoutId}_${exercise.id}_s${setNum}`;
           const isDone = completedSets[setNum];
+          
           return (
             <div key={setNum} className={`flex items-center py-2 space-x-2 border-b border-gray-800 last:border-0 transition-opacity ${isDone ? 'opacity-40' : 'opacity-100'}`}>
               <span className="text-gray-500 text-xs w-6 font-bold pt-1">S{setNum}</span>
@@ -461,7 +488,7 @@ const SavedInput: React.FC<{ value: string, onChange: (v: string) => void, place
       value={value} 
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder} 
-      className="bg-[#2d2d2d] border border-[#404040] text-white text-center w-full p-3 rounded text-lg font-bold focus:outline-none focus:border-red-500 transition-colors" 
+      className="bg-[#2d2d2d] border border-[#404040] text-white text-center w-full p-3 rounded text-lg font-bold focus:outline-none focus:border-red-500 transition-colors placeholder-gray-600" 
     />
   );
 };

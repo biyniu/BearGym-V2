@@ -171,6 +171,48 @@ export default function CoachDashboard() {
         });
   };
 
+  // Helper do pobierania danych do wykresów
+  const getClientChartData = (workoutId: string, exerciseId: string) => {
+    if (!selectedClient?.history?.[workoutId]) return [];
+    
+    const sessions = selectedClient.history[workoutId];
+    if (!Array.isArray(sessions)) return [];
+
+    // Sortujemy po dacie chronologicznie (OD NAJSTARSZEGO DO NAJNOWSZEGO)
+    return sessions.slice()
+      .sort((a: any, b: any) => parseDateStr(a.date) - parseDateStr(b.date))
+      .map((entry: any) => {
+        const resultStr = entry.results?.[exerciseId];
+        if (!resultStr) return null;
+
+        // POPRAWKA: Agresywne usuwanie notatek w nawiasach [] oraz ()
+        // Dzielimy string po nawiasach, bierzemy tylko pierwszą część (czysty wynik)
+        let cleanResultStr = resultStr.split('[')[0];
+        cleanResultStr = cleanResultStr.split('(')[0];
+
+        const matches = cleanResultStr.matchAll(/(\d+(?:[.,]\d+)?)\s*kg/gi);
+        let maxWeight = 0;
+        let found = false;
+
+        for (const match of matches) {
+          const weightVal = parseFloat(match[1].replace(',', '.'));
+          if (!isNaN(weightVal)) {
+            if (weightVal > maxWeight) maxWeight = weightVal;
+            found = true;
+          }
+        }
+
+        if (!found) return null;
+
+        const datePart = entry.date.split(/[ ,]/)[0];
+        return {
+          date: datePart.slice(0, 5),
+          weight: maxWeight
+        };
+      })
+      .filter(Boolean);
+  };
+
   const convertedJsonOutput = useMemo(() => {
     if (!excelInput.trim()) return '';
     const rows = excelInput.trim().split('\n');
@@ -179,7 +221,6 @@ export default function CoachDashboard() {
     rows.forEach((row, idx) => {
       const cols = row.split('\t');
       if (cols.length < 3 || !cols[0]?.trim() || cols[0].toLowerCase().startsWith('plan')) return;
-      // ... (istniejąca logika konwersji) ...
       const planName = cols[0].trim();
       const section = cols[1]?.trim().toLowerCase() || "";
       const name = cols[2]?.trim() || "Ćwiczenie";
@@ -231,6 +272,15 @@ export default function CoachDashboard() {
 
     return JSON.stringify(result, null, 2);
   }, [excelInput]);
+  
+  const CustomLabel = (props: any) => {
+    const { x, y, value } = props;
+    return (
+      <text x={x} y={y - 12} fill="#ffffff" textAnchor="middle" fontSize={10} fontWeight="bold">
+        {value}
+      </text>
+    );
+  };
 
   if (!isAuthorized) {
     return (
@@ -531,6 +581,70 @@ export default function CoachDashboard() {
               <div className="animate-fade-in max-w-4xl mx-auto">
                  <CoachCalendarWidget client={selectedClient} />
               </div>
+            )}
+
+            {/* --- PROGRESS TAB (FIXED - ADDED) --- */}
+            {activeTab === 'progress' && (
+                <div className="animate-fade-in max-w-4xl mx-auto space-y-6">
+                    {selectedClient.plan && Object.entries(selectedClient.plan).map(([wId, workout]: any) => (
+                        <div key={wId} className="bg-[#161616] p-6 rounded-3xl border border-gray-800 shadow-xl">
+                            <div className="flex items-center space-x-3 mb-6 border-b border-gray-700 pb-2">
+                                <div className="w-8 h-8 rounded bg-red-900/20 text-red-500 flex items-center justify-center border border-red-500/30">
+                                    <i className="fas fa-chart-line text-xs"></i>
+                                </div>
+                                <h3 className="text-lg font-black text-white uppercase italic tracking-tighter">{workout.title}</h3>
+                            </div>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                {workout.exercises.map((ex: any) => {
+                                    const data = getClientChartData(wId, ex.id);
+                                    if(data.length === 0) return null; // Zmieniono z < 2 na === 0
+
+                                    const weights = data.map((d: any) => d.weight);
+                                    const maxVal = Math.max(...weights);
+                                    const minVal = Math.min(...weights);
+                                    const domainMax = Math.ceil(maxVal * 1.25);
+                                    const domainMin = Math.max(0, Math.floor(minVal * 0.8));
+
+                                    return (
+                                        <div key={ex.id} className="bg-black/30 p-4 rounded-xl border border-gray-700/50">
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h4 className="text-xs font-bold text-gray-300 uppercase tracking-widest truncate pr-2">{ex.name}</h4>
+                                                <span className="text-[10px] font-mono text-blue-400 bg-blue-900/20 px-2 py-0.5 rounded border border-blue-500/30">Max: {maxVal}kg</span>
+                                            </div>
+                                            <div className="h-40 w-full">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <LineChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+                                                        <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
+                                                        <XAxis dataKey="date" stroke="#555" tick={{fill: '#666', fontSize: 9}} tickMargin={5} />
+                                                        <YAxis hide={true} domain={[domainMin, domainMax]} />
+                                                        <Tooltip 
+                                                            contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: '8px', fontSize: '10px' }} 
+                                                            itemStyle={{ color: '#fff' }} 
+                                                            formatter={(v: any) => [`${v} kg`, '']} 
+                                                            labelStyle={{ color: '#888', marginBottom: '4px' }}
+                                                        />
+                                                        <Line 
+                                                            type="monotone" 
+                                                            dataKey="weight" 
+                                                            stroke="#ef4444" 
+                                                            strokeWidth={2} 
+                                                            dot={{ r: 3, fill: '#ef4444', strokeWidth: 2, stroke: '#1e1e1e' }} 
+                                                            activeDot={{ r: 5, fill: '#fff' }} 
+                                                            connectNulls={true}
+                                                            label={<CustomLabel />}
+                                                            isAnimationActive={false}
+                                                        />
+                                                    </LineChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                    {!selectedClient.history && <p className="text-center text-gray-500 italic">Brak danych historycznych do wyświetlenia wykresów.</p>}
+                </div>
             )}
 
             {/* --- CARDIO/MOBILITY TAB (GROUPED) --- */}
